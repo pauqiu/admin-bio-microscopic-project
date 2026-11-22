@@ -35,13 +35,57 @@ dotnet run --project Frontend
 
 El API aplica las migraciones al arrancar. Las credenciales de `appsettings.json` son solo para desarrollo.
 
+## Usuarios de desarrollo
+
+El API crea los usuarios iniciales desde la configuración. En local se guardan con *user secrets*, fuera del repo. Usá una contraseña propia de al menos 10 caracteres, con mayúscula, minúscula y número.
+
+```powershell
+dotnet user-secrets set "Auth:AdminEmail" "admin@biomicroscope.test" --project Backend.Api
+```
+
+```powershell
+dotnet user-secrets set "Auth:AdminPassword" "<contraseña-admin>" --project Backend.Api
+```
+
+```powershell
+dotnet user-secrets set "Auth:ReaderEmail" "lector@biomicroscope.test" --project Backend.Api
+```
+
+```powershell
+dotnet user-secrets set "Auth:ReaderPassword" "<contraseña-lector>" --project Backend.Api
+```
+
+El usuario Lector de prueba nunca se crea en producción.
+
+## API de sesión
+
+Todas las rutas del API están bajo `/api`. Las escrituras exigen el header `X-Requested-With: BioMicroscope`.
+
+| Método | Ruta | Acceso | Respuesta |
+|---|---|---|---|
+| POST | `/api/auth/login` | Público | `200 { email, roles }` o `401` |
+| POST | `/api/auth/logout` | Con sesión | `204` |
+| GET | `/api/auth/me` | Con sesión | `200 { email, roles }` o `401` |
+
+Las lecturas requieren sesión. Las escrituras requieren el rol `Administrador` y responden `403` a un Lector.
+
 ## Tests
 
 ```powershell
 dotnet test UCR.EB.BioMicroscopeAdmin.sln
 ```
 
-GitHub Actions compila y corre los tests en cada push y PR hacia `main`.
+Los tests de integración levantan su propio PostgreSQL, así que Docker debe estar encendido. GitHub Actions compila y corre todos los tests en cada push y PR hacia `main`.
+
+Las migraciones se crean con la herramienta local del repo:
+
+```powershell
+dotnet tool restore
+```
+
+```powershell
+dotnet ef migrations add <Nombre> --project Backend.Infrastructure --startup-project Backend.Infrastructure --output-dir Persistence/Migrations
+```
 
 ## Estructura
 

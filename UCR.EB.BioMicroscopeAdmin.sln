@@ -63,6 +63,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UCR.EB.BioMicroscopeAdmin.F
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UCR.EB.BioMicroscopeAdmin.Frontend.Presentation.Tests.Unit", "Frontend.Presentation.Tests.Unit\UCR.EB.BioMicroscopeAdmin.Frontend.Presentation.Tests.Unit.csproj", "{D591861F-1FFD-4A90-B338-9A338EF1ED83}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UCR.EB.BioMicroscopeAdmin.Backend.Api.Tests.Integration", "Backend.Api.Tests.Integration\UCR.EB.BioMicroscopeAdmin.Backend.Api.Tests.Integration.csproj", "{0D9E3BCE-B206-48DA-B810-9ACA2C1E2922}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -313,6 +315,18 @@ Global
 		{D591861F-1FFD-4A90-B338-9A338EF1ED83}.Release|x64.Build.0 = Release|Any CPU
 		{D591861F-1FFD-4A90-B338-9A338EF1ED83}.Release|x86.ActiveCfg = Release|Any CPU
 		{D591861F-1FFD-4A90-B338-9A338EF1ED83}.Release|x86.Build.0 = Release|Any CPU
+		{0D9E3BCE-B206-48DA-B810-9ACA2C1E2922}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0D9E3BCE-B206-48DA-B810-9ACA2C1E2922}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0D9E3BCE-B206-48DA-B810-9ACA2C1E2922}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0D9E3BCE-B206-48DA-B810-9ACA2C1E2922}.Debug|x64.Build.0 = Debug|Any CPU
+		{0D9E3BCE-B206-48DA-B810-9ACA2C1E2922}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0D9E3BCE-B206-48DA-B810-9ACA2C1E2922}.Debug|x86.Build.0 = Debug|Any CPU
+		{0D9E3BCE-B206-48DA-B810-9ACA2C1E2922}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0D9E3BCE-B206-48DA-B810-9ACA2C1E2922}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0D9E3BCE-B206-48DA-B810-9ACA2C1E2922}.Release|x64.ActiveCfg = Release|Any CPU
+		{0D9E3BCE-B206-48DA-B810-9ACA2C1E2922}.Release|x64.Build.0 = Release|Any CPU
+		{0D9E3BCE-B206-48DA-B810-9ACA2C1E2922}.Release|x86.ActiveCfg = Release|Any CPU
+		{0D9E3BCE-B206-48DA-B810-9ACA2C1E2922}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -346,5 +360,6 @@ Global
 		{E31987E6-7E65-440A-8C85-456C1082D65A} = {B3C4D5E6-F7A8-9012-BCDE-F01234567890}
 		{EAF3364D-2483-425C-BE9E-14618C546A00} = {C4D5E6F7-A8B9-0123-CDEF-012345678901}
 		{D591861F-1FFD-4A90-B338-9A338EF1ED83} = {D5E6F7A8-B9C0-1234-DEF0-123456789012}
+		{0D9E3BCE-B206-48DA-B810-9ACA2C1E2922} = {1AE8ACA6-933B-BF2A-3671-3E2EAC007D16}
 	EndGlobalSection
 EndGlobal

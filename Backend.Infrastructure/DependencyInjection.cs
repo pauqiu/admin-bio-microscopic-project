@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using UCR.EB.BioMicroscopeAdmin.Backend.Application.Services;
 using UCR.EB.BioMicroscopeAdmin.Backend.Domain.Repositories;
+using UCR.EB.BioMicroscopeAdmin.Backend.Infrastructure.Identity;
 using UCR.EB.BioMicroscopeAdmin.Backend.Infrastructure.Persistence;
 using UCR.EB.BioMicroscopeAdmin.Backend.Infrastructure.Repositories;
 using UCR.EB.BioMicroscopeAdmin.Backend.Infrastructure.Services;
@@ -18,6 +19,8 @@ public static class DependencyInjection
     {
         services.AddDbContext<AppDbContext>(opts =>
             opts.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
+
+        services.AddIdentityServices();
 
         services.AddScoped<IGroupRepository, EfGroupRepository>();
         services.AddScoped<IBoxRepository, EfBoxRepository>();

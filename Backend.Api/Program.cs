@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using UCR.EB.BioMicroscopeAdmin.Backend.DependencyInjection;
+using UCR.EB.BioMicroscopeAdmin.Backend.Infrastructure.Identity;
 using UCR.EB.BioMicroscopeAdmin.Backend.Infrastructure.Persistence;
+using UCR.EB.BioMicroscopeAdmin.Backend.Presentation.Security;
 
 // wwwroot está en .gitignore (se genera en el publish), pero UseStaticFiles
 // resuelve su WebRootFileProvider al construir el host: si la carpeta no
@@ -24,14 +26,12 @@ var app = builder.Build();
 
 app.UseGlobalExceptionHandler();
 
-// Swagger queda disponible en todos los entornos: la API es de uso local (sin
-// autenticación) tanto en desarrollo como en el empaquetado de escritorio, y la
-// pestaña "Documentación API" del frontend enlaza directamente a /swagger.
-app.UseSwagger();
-app.UseSwaggerUI();
-
 if (app.Environment.IsDevelopment())
 {
+    app.UseSwagger();
+    // Swagger manda el header anti-CSRF para poder probar las escrituras.
+    app.UseSwaggerUI(options => options.UseRequestInterceptor(
+        $"(req) => {{ req.headers['{CsrfHeaderFilter.HeaderName}'] = '{CsrfHeaderFilter.HeaderValue}'; return req; }}"));
     app.UseCors();
 }
 
@@ -49,6 +49,9 @@ if (!app.Environment.IsDevelopment() && !builder.Configuration.GetValue<bool>("D
 app.UseBlazorFrameworkFiles();
 app.UseStaticFiles();
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapEndpoints();
 
 app.MapGet("/health", async (AppDbContext db) =>
@@ -60,6 +63,7 @@ app.MapGet("/health", async (AppDbContext db) =>
 app.MapFallbackToFile("index.html");
 
 await MigrateDatabaseWithRetryAsync(app);
+await app.Services.SeedIdentityAsync();
 
 await app.RunAsync();
 
