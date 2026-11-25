@@ -13,6 +13,9 @@ internal class HeldPhotoService(IHeldPhotoRepository repository) : IHeldPhotoSer
     public async Task SaveLayoutAsync(IReadOnlyList<HeldPhotoPlacement> placements)
     {
         foreach (var item in placements)
+            await repository.UpdatePlacementAsync(item.Id, null, null);
+
+        foreach (var item in placements)
             await repository.UpdatePlacementAsync(item.Id, item.Stack, item.Position);
     }
 
