@@ -23,18 +23,17 @@ Fuera del alcance: digitalización, préstamos, hardware, apps móviles nativas,
 
 Restricciones: la estructura de la Escuela es fija, no hay presupuesto, las condiciones del servidor son desconocidas.
 
-Ambigüedades abiertas (confirmar con las personas patrocinadoras antes de cerrar el diseño): qué significa exactamente "vista protegida" y cómo se autoriza a docentes/estudiantes. Mientras tanto, asumir dos roles: **Administrador** (CRUD completo) y **Lector** (solo consulta, con sesión).
+El trabajo se guía por la **lista de actividades (EDT)** del equipo, no solo por el Acta. La EDT no incluye autenticación ni roles, así que no se programan mientras no cambie por el Plan de Gestión de Cambios.
 
 ## Estado actual del código (verificado)
 
 - Sin autenticación ni roles. Todos los endpoints son públicos.
-- Swagger activo en todos los entornos (`Backend.Api/Program.cs`).
-- Las imágenes se guardan en `wwwroot/uploads` (`LocalFileStorageService`, marcado "solo desarrollo") y se sirven con `UseStaticFiles`, o sea que **cualquiera con la URL ve la imagen**.
-- No hay miniaturas.
-- CORS abierto (`AllowAnyOrigin`) solo en Development.
+- Las imágenes se guardan en `wwwroot/uploads` (`LocalFileStorageService`) y se sirven con `UseStaticFiles`.
+- El detalle de la lámina muestra las imágenes como tarjetas, sin visor ni zoom.
+- Una lámina admite hasta 6 imágenes ordenadas. El formulario de lámina nueva acepta varias fotos; el detalle sube una por una.
+- Hay búsqueda de láminas por código o nombre y filtro por caja. Las cajas solo se filtran por grupo.
+- CORS abierto (`AllowAnyOrigin`) solo en Development. En desarrollo el front corre en 5200 y el API en 5138.
 - La contraseña de Postgres está en `appsettings.json` (`postgres/postgres`, solo desarrollo).
-- README vacío.
-- El API sirve el front Blazor en el mismo origen (`MapFallbackToFile("index.html")`).
 
 ## Stack y mapa del repo
 
@@ -57,15 +56,11 @@ dotnet test UCR.EB.BioMicroscopeAdmin.sln  # todos los tests
 
 URL del API para el front: `Frontend/wwwroot/appsettings*.json` → `ApiBaseUrl`.
 
-## Decisiones técnicas propuestas
+## Decisiones técnicas
 
-1. **Autenticación por cookie, mismo origen.** ASP.NET Core Identity + roles (`Administrador`, `Lector`). Motivo: un `<img src>` no puede mandar un header `Authorization`, así que JWT bearer rompería la visualización de imágenes protegidas.
-2. **Imágenes fuera de `wwwroot`.** Guardarlas en una carpeta configurable (`Storage:Path`, volumen en Docker) y servirlas por un endpoint con `RequireAuthorization()`. Sin `UseStaticFiles` para ellas.
-3. **Política por defecto = autenticado.** Lecturas: cualquier usuario con sesión. Escrituras (POST/PUT/DELETE): solo `Administrador`.
-4. **Swagger solo en Development.** La pestaña "Documentación API" del front hay que ajustarla o quitarla en producción.
-5. **Un solo despliegue en contenedor** (API + front estático + volumen de imágenes + Postgres) con `Dockerfile` y `docker-compose.prod.yml`. Es lo que se puede mover al servidor de la Escuela.
-6. **Secretos fuera del repo.** Cadena de conexión y contraseña del admin inicial por variables de entorno.
-7. En desarrollo, el front (5200) y el API (5138) son orígenes distintos: o se sirve el front desde el API, o se configura CORS con origen explícito + `AllowCredentials` y el `HttpClient` con credenciales incluidas. `AllowAnyOrigin` no funciona con cookies.
+1. **Sin auth por ahora.** No está en la EDT. Cualquier cambio pasa por el Plan de Gestión de Cambios.
+2. **Cada paquete toca sus propios archivos** para que nadie tenga que esperar a otra persona (ver la tabla de abajo).
+3. **Secretos fuera del repo.** La cadena de conexión de producción va por variables de entorno.
 
 ## Reglas de colaboración
 
@@ -76,19 +71,15 @@ URL del API para el front: `Frontend/wwwroot/appsettings*.json` → `ApiBaseUrl`
 - No subir `wwwroot/uploads`, `build/`, `Electron/dist` ni secretos.
 - Cualquier cambio de alcance (no solo de código) pasa por el Plan de Gestión de Cambios del curso.
 
-## Paquetes de trabajo (reparto propuesto, ajustar en equipo)
+## Paquetes de trabajo según la EDT
 
-| # | Paquete | Qué incluye | Responsable | Depende de |
-|---|---------|-------------|-----------|-----------|
-| 0 | Esqueleto | Fork, este archivo, README con cómo correr, `docker compose`, rama `main` verde | Dev 1 | — |
-| 1 | Auth backend | Identity + cookie, roles, usuario admin inicial por variable de entorno, política por defecto, Swagger solo en Dev, endpoints `/auth/login`, `/auth/logout`, `/auth/me` | Dev 1 | 0 |
-| 2 | Login en el front | Página de login, `AuthenticationStateProvider`, rutas protegidas, ocultar botones de admin al Lector, cerrar sesión | Dev 2 | contrato de 1 (se puede avanzar con un mock) |
-| 3 | Imágenes protegidas | Almacenamiento fuera de `wwwroot`, endpoint autorizado, miniaturas, visor con varias vistas por lámina | Dev 3 | 1 |
-| 4 | Gestión de usuarios | Pantalla del Administrador para crear/desactivar usuarios Lector | Dev 2 | 1, 2 |
-| 5 | Despliegue y docs | `Dockerfile`, `docker-compose.prod.yml`, prueba en el host de demo, README, actualizar `GuiaUso`, lista de aceptación contra el Acta | PM + quien termine primero | 1, 3 |
+Primero se mezclan el esqueleto y la EDT 1. Después cada paquete avanza por su cuenta.
 
-El paquete 1 desbloquea a todos: mezclarlo primero (aunque sea con lo mínimo) y publicar el contrato de los endpoints de auth para que 2 y 3 avancen en paralelo.
+| EDT | Paquete | Responsable | Archivos que toca | No toca |
+|-----|---------|-------------|-------------------|---------|
+| 1 | Visualización: ampliar, acercar y alejar | Dev 1 | `ImageViewerDialog.razor`, `ImageUrls.cs`, detalle de lámina | — |
+| 2 | Carga simultánea de fotografías | Dev 3 | `ImageUploadDialog.razor`, servicio de imágenes, endpoint de carga | Páginas de grupos, cajas y láminas; visor |
+| 3 y 4 | Navegación jerárquica, búsqueda y filtrado de cajas | Dev 2 | `GroupsPage.razor`, `BoxesPage.razor`, `SlidesPage.razor`, listado de cajas | Detalle de lámina e imágenes |
+| 5 | Documentación y puesta en funcionamiento | PM | `docs/`, archivos de despliegue | Código de la app |
 
-## Prompt para arrancar la Fase 0
-
-> Lee CLAUDE.md. Haz solo el paquete 0: confirmar que el repo compila y que `dotnet test` pasa, escribir un README real (cómo levantar BD, API y front), y dejarlo en una rama `feat/esqueleto`. No toques autenticación todavía. Al final dime qué falló o qué supuestos tuviste que hacer.
+Si alguien necesita tocar un archivo de otro paquete, lo avisa antes en el grupo.
