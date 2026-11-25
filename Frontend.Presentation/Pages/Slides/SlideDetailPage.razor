@@ -1,6 +1,7 @@
 @page "/slides/{Id:int}"
 @using System.Linq
 @using Microsoft.Extensions.Configuration
+@using UCR.EB.BioMicroscopeAdmin.Frontend.Presentation.Components
 @inject ISlideService SlideService
 @inject IImageService ImageService
 @inject IBoxService BoxService
@@ -75,7 +76,7 @@ else
     else
     {
         <MudText Typo="Typo.body2" Class="mb-2 mud-text-secondary">
-            Arrastre las imágenes para cambiar su orden.
+            Arrastre las imágenes para cambiar su orden. Haga clic en una imagen para abrirla en el visor.
         </MudText>
         <MudDropContainer T="ImageDto" @ref="_dropContainer" Items="_images"
                           ItemsSelector="@((item, zone) => true)"
@@ -86,7 +87,9 @@ else
             </ChildContent>
             <ItemRenderer>
                 <MudCard Style="width: 250px; cursor: grab;">
-                    <MudCardMedia Image="@ResolveImageUrl(context.FileUrl)" Height="200" />
+                    <img src="@ImageUrls.Resolve(context.FileUrl, Configuration["ApiBaseUrl"])" alt="@context.FileName"
+                         draggable="false" title="Abrir en el visor" @onclick="@(() => OpenViewer(context))"
+                         style="width: 100%; height: 200px; object-fit: cover; cursor: zoom-in; display: block;" />
                     <MudCardContent>
                         <MudText Typo="Typo.body2">@context.FileName</MudText>
                         <MudChip T="string" Size="Size.Small" Color="Color.Primary">Orden: @context.Order</MudChip>
@@ -113,18 +116,15 @@ else
     private List<ImageDto> _images = [];
     private MudDropContainer<ImageDto>? _dropContainer;
 
-    private string ResolveImageUrl(string fileUrl)
+    private async Task OpenViewer(ImageDto image)
     {
-        // On Unix runtimes (incl. WASM) "/uploads/x.png" parses as an absolute file:// URI,
-        // so only treat real web URLs as already-absolute.
-        if (Uri.TryCreate(fileUrl, UriKind.Absolute, out var uri) &&
-            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        var parameters = new DialogParameters<ImageViewerDialog>
         {
-            return fileUrl;
-        }
-        var encodedPath = string.Join('/', fileUrl.Split('/').Select(Uri.EscapeDataString));
-        var baseUrl = (Configuration["ApiBaseUrl"] ?? "http://localhost:5138/").TrimEnd('/');
-        return $"{baseUrl}{encodedPath}";
+            { x => x.Images, _images },
+            { x => x.StartIndex, _images.FindIndex(i => i.Id == image.Id) }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.ExtraLarge, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true };
+        await DialogService.ShowAsync<ImageViewerDialog>(image.FileName, parameters, options);
     }
 
     protected override Task OnInitializedAsync() => Load();
@@ -173,25 +173,17 @@ else
     private async Task UploadImage()
     {
         if (_slide is null) return;
-        var dialog = await DialogService.ShowAsync<ImageUploadDialog>("Subir Imagen");
-        var result = await dialog.Result;
-        if (result is not null && !result.Canceled && result.Data is ImageUploadDialog.ImageUploadResult upload)
+        // La carga completa vive en ImageUploadDialog. Esta página solo recarga al terminar.
+        var parameters = new DialogParameters<ImageUploadDialog>
         {
-            try
-            {
-                // El backend admite órdenes 1..6; se usa el menor valor libre.
-                var used = _images.Select(i => i.Order).ToHashSet();
-                var nextOrder = Enumerable.Range(1, MaxImages).First(o => !used.Contains(o));
-
-                await using var stream = upload.File.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
-                using var ms = new MemoryStream();
-                await stream.CopyToAsync(ms);
-                ms.Position = 0;
-                await ImageService.UploadAsync(_slide.Id, ms, upload.File.Name, nextOrder);
-                Snackbar.Add("Imagen subida correctamente.", Severity.Success);
-                await Load();
-            }
-            catch (Exception ex) { Snackbar.Add($"Error al subir imagen: {ex.Message}", Severity.Error); }
+            { x => x.SlideId, _slide.Id },
+            { x => x.UsedOrders, _images.Select(i => i.Order).ToList() }
+        };
+        var dialog = await DialogService.ShowAsync<ImageUploadDialog>("Subir Imagen", parameters);
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled)
+        {
+            await Load();
         }
     }
 

@@ -1,0 +1,161 @@
+@using Microsoft.Extensions.Configuration
+@using Microsoft.JSInterop
+@using UCR.EB.BioMicroscopeAdmin.Frontend.Presentation.Components
+@inject IConfiguration Configuration
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@* Visor como en el laboratorio: la foto empieza completa en 4x y Acercar pasa por 10x, 40x y 100x.
+   La foto se mueve arrastrándola, como la platina del microscopio. *@
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@Current.FileName</MudText>
+        <MudText Typo="Typo.caption">
+            Aumento @MagnificationLevels.Label(_level)@(Images.Count > 1 ? $" · Vista {_index + 1} de {Images.Count}" : "")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <div tabindex="0" @ref="_viewer" @onkeydown="OnKeyDown" style="outline: none;">
+            <MudStack Row="true" Justify="Justify.Center" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2 flex-wrap">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                    <MudTooltip Text="Alejar">
+                        <MudIconButton Icon="@Icons.Material.Filled.ZoomOut" aria-label="Alejar"
+                                       Disabled="@(_level == 0)" OnClick="@(() => SetLevel(_level - 1))" />
+                    </MudTooltip>
+                    <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary">
+                        @for (var i = 0; i < MagnificationLevels.Count; i++)
+                        {
+                            var level = i;
+                            <MudButton aria-label="@($"Aumento {MagnificationLevels.Label(level)}")"
+                                       aria-pressed="@(level == _level ? "true" : "false")"
+                                       Variant="@(level == _level ? Variant.Filled : Variant.Outlined)"
+                                       Style="text-transform: none;"
+                                       OnClick="@(() => SetLevel(level))">
+                                @MagnificationLevels.Label(level)
+                            </MudButton>
+                        }
+                    </MudButtonGroup>
+                    <MudTooltip Text="Acercar">
+                        <MudIconButton Icon="@Icons.Material.Filled.ZoomIn" aria-label="Acercar"
+                                       Disabled="@(_level == MagnificationLevels.Count - 1)" OnClick="@(() => SetLevel(_level + 1))" />
+                    </MudTooltip>
+                </MudStack>
+
+                @if (Images.Count > 1)
+                {
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                        <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" aria-label="Vista anterior" OnClick="Previous" />
+                        <MudText Typo="Typo.body2">Vista @(_index + 1) de @Images.Count</MudText>
+                        <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" aria-label="Vista siguiente" OnClick="Next" />
+                    </MudStack>
+                }
+            </MudStack>
+
+            <div @ref="_stage" style="height: 65vh; overflow: auto; background: #111; display: flex; border-radius: 4px; touch-action: none;">
+                <img @ref="_image" src="@Url(Current)" alt="@Current.FileName" draggable="false"
+                     style="margin: auto; flex: none; max-width: none; user-select: none;" />
+            </div>
+            <MudText Typo="Typo.caption" Class="mt-1 d-block mud-text-secondary" Align="Align.Center">
+                Arrastre la foto para recorrerla.
+            </MudText>
+
+            @if (Images.Count > 1)
+            {
+                <div class="d-flex justify-center flex-wrap gap-2 mt-3">
+                    @for (var i = 0; i < Images.Count; i++)
+                    {
+                        var index = i;
+                        <button type="button" aria-label="@($"Ver vista {index + 1}")" aria-current="@(index == _index ? "true" : null)"
+                                @onclick="@(() => Select(index))"
+                                style="@ThumbnailStyle(index)">
+                            <img src="@Url(Images[index])" alt="" loading="lazy" draggable="false"
+                                 style="width: 100%; height: 100%; object-fit: cover; display: block;" />
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    private const string ModulePath = "./_content/UCR.EB.BioMicroscopeAdmin.Frontend.Presentation/js/image-viewer.js";
+
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+    [Parameter, EditorRequired] public IReadOnlyList<ImageDto> Images { get; set; } = [];
+    [Parameter] public int StartIndex { get; set; }
+
+    private ElementReference _viewer;
+    private ElementReference _stage;
+    private ElementReference _image;
+    private IJSObjectReference? _module;
+    private int _index;
+    private int _level;
+    private bool _applyZoom = true;
+    private bool _resetCenter = true;
+
+    private ImageDto Current => Images[_index];
+
+    // Solo al abrir: refrescar el título vuelve a pasar parámetros y no debe reiniciar la vista.
+    protected override void OnInitialized() => _index = Math.Clamp(StartIndex, 0, Images.Count - 1);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", ModulePath);
+            await _module.InvokeVoidAsync("init", _stage);
+            await _viewer.FocusAsync();
+        }
+
+        if (_applyZoom && _module is not null)
+        {
+            _applyZoom = false;
+            await _module.InvokeVoidAsync("zoom", _stage, _image, MagnificationLevels.Scale(_level), _resetCenter);
+            _resetCenter = false;
+        }
+    }
+
+    private string Url(ImageDto image) => ImageUrls.Resolve(image.FileUrl, Configuration["ApiBaseUrl"]);
+
+    private string ThumbnailStyle(int index) =>
+        $"width: 64px; height: 64px; padding: 0; cursor: pointer; overflow: hidden; border-radius: 4px; " +
+        $"border: 2px solid {(index == _index ? "var(--mud-palette-primary)" : "transparent")};";
+
+    private void SetLevel(int level)
+    {
+        level = MagnificationLevels.Clamp(level);
+        if (level == _level) return;
+        _level = level;
+        _applyZoom = true;
+        RefreshTitle();
+    }
+
+    private void Select(int index)
+    {
+        _index = Math.Clamp(index, 0, Images.Count - 1);
+        _level = 0;
+        _applyZoom = true;
+        _resetCenter = true;
+        RefreshTitle();
+    }
+
+    // El título lo dibuja el contenedor del diálogo, que no se refresca solo.
+    private void RefreshTitle() => Dialog.StateHasChanged();
+
+    private void Previous() => Select((_index - 1 + Images.Count) % Images.Count);
+    private void Next() => Select((_index + 1) % Images.Count);
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "ArrowLeft" && Images.Count > 1) Previous();
+        if (e.Key == "ArrowRight" && Images.Count > 1) Next();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is null) return;
+        try { await _module.DisposeAsync(); }
+        catch (JSDisconnectedException) { }
+    }
+}
