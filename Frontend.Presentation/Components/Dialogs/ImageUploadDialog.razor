@@ -1,14 +1,14 @@
 @using UCR.EB.BioMicroscopeAdmin.Frontend.Presentation.Components
 @inject IImageService ImageService
 
-<MudDialog>
+<MudDialog OnBackdropClick="OnBackdropClick">
     <TitleContent>Subir imágenes</TitleContent>
     <DialogContent>
         <MudText Typo="Typo.body2" Class="mb-3">
             Elija varias fotos. La primera de esta selección ocupa el aumento libre más bajo.
             En el visor, el aumento 1 es la foto más lejana. Después puede reordenarlas arrastrando en la lámina.
         </MudText>
-        <MudFileUpload T="IReadOnlyList<IBrowserFile>" FilesChanged="OnFilesChanged" Accept="image/*">
+        <MudFileUpload T="IReadOnlyList<IBrowserFile>" FilesChanged="OnFilesChanged" Accept="image/*" MaximumFileCount="100">
             <ActivatorContent>
                 <MudButton Variant="Variant.Filled" Color="Color.Primary"
                            StartIcon="@Icons.Material.Filled.CloudUpload"
@@ -18,13 +18,16 @@
             </ActivatorContent>
         </MudFileUpload>
 
-        @foreach (var item in _preview.Accepted)
+        @if (_attempts.Count == 0)
         {
-            <MudText Typo="Typo.body2" Class="mt-2">@item.FileName · Aumento @item.Order</MudText>
-        }
-        @foreach (var item in _preview.Rejected)
-        {
-            <MudText Typo="Typo.body2" Color="Color.Error" Class="mt-2">@item.FileName · @item.Reason</MudText>
+            @foreach (var item in _preview.Accepted)
+            {
+                <MudText Typo="Typo.body2" Class="mt-2">@item.FileName · Aumento @item.Order</MudText>
+            }
+            @foreach (var item in _preview.Rejected)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Error" Class="mt-2">@item.FileName · @item.Reason</MudText>
+            }
         }
         @foreach (var attempt in _attempts)
         {
@@ -106,6 +109,12 @@
         {
             _uploading = false;
         }
+    }
+
+    private void OnBackdropClick()
+    {
+        if (_uploading) return;
+        Close();
     }
 
     private void Close()
