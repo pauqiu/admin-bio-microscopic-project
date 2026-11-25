@@ -56,7 +56,7 @@
                Disabled="@(_busy || !PileNumbers.Any(Ready))">
         Crear las láminas que ya tienen código y nombre
     </MudButton>
-    <MudText Typo="Typo.body2">@PileNumbers.Count() pilas · @Unassigned.Count() fotos sueltas</MudText>
+    <MudText Typo="Typo.body2">@Summary()</MudText>
 </MudStack>
 
 @if (Unassigned.Any())
@@ -129,6 +129,15 @@
     private string? _progress;
     private bool _busy;
 
+    private string Summary()
+    {
+        var piles = PileNumbers.Count();
+        var loose = Unassigned.Count();
+        var pileWord = piles == 1 ? "pila" : "pilas";
+        var looseWord = loose == 1 ? "foto suelta" : "fotos sueltas";
+        return $"{piles} {pileWord} · {loose} {looseWord}";
+    }
+
     private string CodeOf(int stack) => _codes.TryGetValue(stack, out var value) ? value : "";
     private string NameOf(int stack) => _names.TryGetValue(stack, out var value) ? value : "";
     private int BoxOf(int stack) => _boxes.TryGetValue(stack, out var value) ? value : (_boxList.FirstOrDefault()?.Id ?? 0);
@@ -173,7 +182,7 @@
         foreach (var rejected in screened.Rejected)
             _batchLines.Add(($"{rejected.FileName} · {rejected.Reason}", Color.Error));
 
-        var saved = 0;
+        var saved = new List<int>();
         _busy = true;
         try
         {
@@ -189,8 +198,8 @@
                     using var ms = new MemoryStream();
                     await stream.CopyToAsync(ms);
                     ms.Position = 0;
-                    await HeldPhotoService.UploadAsync(ms, file.Name);
-                    saved++;
+                    var created = await HeldPhotoService.UploadAsync(ms, file.Name);
+                    saved.Add(created.Id);
                     if (total <= 12)
                         _batchLines.Add(($"{file.Name} · Subida", Color.Success));
                 }
@@ -200,11 +209,11 @@
                 }
             }
 
-            if (saved > 0)
-                _batchLines.Insert(0, ($"{saved} fotos guardadas. Ya quedaron en pilas de hasta 6.", Color.Success));
+            if (saved.Count > 0)
+                _batchLines.Insert(0, ($"{saved.Count} fotos guardadas. Ya quedaron en pilas de hasta 6, en el orden en que las eligió.", Color.Success));
 
             await Reload();
-            if (PackUnassigned())
+            if (Place(saved))
                 await SaveLayout();
         }
         finally
@@ -228,9 +237,18 @@
         }
     }
 
-    private bool PackUnassigned()
+    private bool PackUnassigned() => Place(Unassigned.Select(photo => photo.Id).ToList());
+
+    private bool Place(IReadOnlyList<int> ids)
     {
-        var loose = Unassigned.ToList();
+        var loose = new List<HeldPhotoDto>();
+        foreach (var id in ids)
+        {
+            var photo = _photos.FirstOrDefault(item => item.Id == id && item.Stack is null);
+            if (photo is not null)
+                loose.Add(photo);
+        }
+
         if (loose.Count == 0) return false;
         var next = PileNumbers.DefaultIfEmpty(0).Max() + 1;
         for (var i = 0; i < loose.Count; i++)
@@ -241,6 +259,7 @@
                 Position = (i % PhotoStacks.MaxPerStack) + 1
             });
         }
+
         return true;
     }
 
