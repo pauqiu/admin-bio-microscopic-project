@@ -70,4 +70,18 @@ public class UploadPlanTests
         Assert.Equal("La lámina ya llega a 6 fotos.", result.Rejected.Single().Reason);
         Assert.Equal(6, result.Rejected.Single().Index);
     }
+
+    [Fact]
+    public void Screen_AcceptsMoreThanSixAndStillRejectsEmptyAndHugeFiles()
+    {
+        var files = Enumerable.Range(0, 7).Select(i => File(i, $"f{i}.png", 100)).ToList();
+        files.Add(File(7, "vacia.png", 0));
+        files.Add(File(8, "grande.png", UploadPlan.MaxFileBytes + 1));
+
+        var result = UploadPlan.Screen(files);
+
+        Assert.Equal(7, result.Accepted.Count);
+        Assert.All(result.Accepted, item => Assert.Equal(0, item.Order));
+        Assert.Equal(new[] { "El archivo está vacío.", "Supera 10 MB." }, result.Rejected.Select(item => item.Reason));
+    }
 }

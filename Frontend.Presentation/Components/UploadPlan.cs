@@ -50,4 +50,25 @@ public static class UploadPlan
 
         return new UploadPlanResult(accepted, rejected);
     }
+
+    /// <summary>
+    /// Filtro de la sección Carga. No aplica el tope de 6 fotos.
+    /// Los aceptados salen con <see cref="PlannedUpload.Order"/> 0 porque todavía no tienen lámina.
+    /// </summary>
+    public static UploadPlanResult Screen(IReadOnlyList<UploadCandidate> files)
+    {
+        var accepted = new List<PlannedUpload>();
+        var rejected = new List<RejectedUpload>();
+        foreach (var file in files)
+        {
+            if (file.Length <= 0)
+                rejected.Add(new RejectedUpload(file.Index, file.FileName, "El archivo está vacío."));
+            else if (file.Length > MaxFileBytes)
+                rejected.Add(new RejectedUpload(file.Index, file.FileName, "Supera 10 MB."));
+            else
+                accepted.Add(new PlannedUpload(file.Index, file.FileName, 0));
+        }
+
+        return new UploadPlanResult(accepted, rejected);
+    }
 }
