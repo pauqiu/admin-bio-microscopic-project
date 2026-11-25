@@ -99,16 +99,16 @@
         {
             <MudTextField T="string" Value="@CodeOf(stack)" ValueChanged="@(value => _codes[stack] = value ?? "")" Immediate="true" Label="Código de la lámina" MaxLength="20" Variant="Variant.Outlined" Class="mt-2" />
             <MudTextField T="string" Value="@NameOf(stack)" ValueChanged="@(value => _names[stack] = value ?? "")" Immediate="true" Label="Nombre de la lámina" MaxLength="150" Variant="Variant.Outlined" Class="mt-2" />
-            <MudSelect T="int" Value="@BoxOf(stack)" ValueChanged="@(value => _boxes[stack] = value)" Label="Caja" Variant="Variant.Outlined" Class="mt-2" Disabled="@(_boxList.Count == 0)">
+            <MudSelect T="int?" Value="@BoxOf(stack)" ValueChanged="@(value => RememberBox(stack, value))" Label="Caja" Variant="Variant.Outlined" Class="mt-2" Disabled="@(_boxList.Count == 0)">
                 @foreach (var box in _boxList)
                 {
-                    <MudSelectItem T="int" Value="@box.Id">@box.Number — @box.Name</MudSelectItem>
+                    <MudSelectItem T="int?" Value="@box.Id">@box.Number — @box.Name</MudSelectItem>
                 }
             </MudSelect>
             <MudText Typo="Typo.caption">La caja ya pertenece a un grupo. Aquí no se crean grupos ni cajas.</MudText>
             @if (!Ready(stack))
             {
-                <MudText Typo="Typo.body2" Color="Color.Warning" Class="mt-1">Escriba el código y el nombre para crear la lámina.</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Warning" Class="mt-1">@MissingFields(stack)</MudText>
             }
             <MudButton Class="mt-2" Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_busy || !Ready(stack))"
                        OnClick="@(() => Promote(stack))">Crear lámina</MudButton>
@@ -140,9 +140,36 @@
 
     private string CodeOf(int stack) => _codes.TryGetValue(stack, out var value) ? value : "";
     private string NameOf(int stack) => _names.TryGetValue(stack, out var value) ? value : "";
-    private int BoxOf(int stack) => _boxes.TryGetValue(stack, out var value) ? value : (_boxList.FirstOrDefault()?.Id ?? 0);
+
+    private int? BoxOf(int stack)
+    {
+        if (_boxes.TryGetValue(stack, out var value) && _boxList.Any(box => box.Id == value))
+            return value;
+        return _boxList.Count == 1 ? _boxList[0].Id : null;
+    }
+
+    private void RememberBox(int stack, int? value)
+    {
+        if (value is int id)
+            _boxes[stack] = id;
+        else
+            _boxes.Remove(stack);
+    }
+
+    private void ForgetPile(int stack)
+    {
+        _codes.Remove(stack);
+        _names.Remove(stack);
+        _boxes.Remove(stack);
+    }
+
     private bool Ready(int stack) =>
-        !string.IsNullOrWhiteSpace(CodeOf(stack)) && !string.IsNullOrWhiteSpace(NameOf(stack)) && BoxOf(stack) != 0;
+        !string.IsNullOrWhiteSpace(CodeOf(stack)) && !string.IsNullOrWhiteSpace(NameOf(stack)) && BoxOf(stack) is > 0;
+
+    private string MissingFields(int stack) =>
+        BoxOf(stack) is null
+            ? "Escriba el código y el nombre, y elija la caja, para crear la lámina."
+            : "Escriba el código y el nombre para crear la lámina.";
 
     private IEnumerable<HeldPhotoDto> Unassigned => _photos.Where(photo => photo.Stack is null);
     private IEnumerable<int> PileNumbers => _photos.Where(photo => photo.Stack is not null).Select(photo => photo.Stack!.Value).Distinct().Order();
@@ -307,7 +334,12 @@
         var photo = _photos.Single(item => item.Id == id);
         var stack = photo.Stack;
         Replace(photo with { Stack = null, Position = null });
-        if (stack is int pile) Renumber(pile);
+        if (stack is int pile)
+        {
+            Renumber(pile);
+            if (Count(pile) == 0)
+                ForgetPile(pile);
+        }
         await Persist();
     }
 
@@ -396,9 +428,11 @@
     {
         var code = CodeOf(stack).Trim();
         var name = NameOf(stack).Trim();
+        if (BoxOf(stack) is not int boxId) return;
         try
         {
-            var slide = await HeldPhotoService.PromoteAsync(stack, new CreateSlideDto(code, name, BoxOf(stack), null, null));
+            var slide = await HeldPhotoService.PromoteAsync(stack, new CreateSlideDto(code, name, boxId, null, null));
+            ForgetPile(stack);
             _created.Add((slide.Id, slide.Code));
             Snackbar.Add($"Lámina {slide.Code} creada.", Severity.Success);
         }
