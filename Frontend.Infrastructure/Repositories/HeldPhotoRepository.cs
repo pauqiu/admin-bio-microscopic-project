@@ -23,6 +23,8 @@ internal sealed class HeldPhotoRepository(BioMicroscopeApiClient client) : IHeld
         client.SaveHeldPhotoLayoutAsync(new SaveHeldPhotoLayoutRequest(
             placements.Select(item => new HeldPhotoLayoutItemRequest(item.Id, item.Stack, item.Position)).ToList()));
 
+    public Task DeleteAsync(int id) => client.DeleteHeldPhotoAsync(id);
+
     public async Task<SlideDto> PromoteAsync(int stack, CreateSlideDto dto)
     {
         var created = await client.PromoteHeldStackAsync(

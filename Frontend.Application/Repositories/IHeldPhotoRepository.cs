@@ -8,5 +8,6 @@ public interface IHeldPhotoRepository
     Task<List<HeldPhotoDto>> ListAsync();
     Task<HeldPhotoDto> UploadAsync(Stream fileStream, string fileName);
     Task SaveLayoutAsync(IReadOnlyList<HeldPhotoLayoutItemDto> placements);
+    Task DeleteAsync(int id);
     Task<SlideDto> PromoteAsync(int stack, CreateSlideDto dto);
 }

@@ -9,5 +9,6 @@ internal class HeldPhotoService(IHeldPhotoRepository repository) : IHeldPhotoSer
     public Task<List<HeldPhotoDto>> ListAsync() => repository.ListAsync();
     public Task<HeldPhotoDto> UploadAsync(Stream fileStream, string fileName) => repository.UploadAsync(fileStream, fileName);
     public Task SaveLayoutAsync(IReadOnlyList<HeldPhotoLayoutItemDto> placements) => repository.SaveLayoutAsync(placements);
+    public Task DeleteAsync(int id) => repository.DeleteAsync(id);
     public Task<SlideDto> PromoteAsync(int stack, CreateSlideDto dto) => repository.PromoteAsync(stack, dto);
 }

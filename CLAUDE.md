@@ -31,7 +31,7 @@ El trabajo se guía por la **lista de actividades (EDT)** del equipo, no solo po
 - Las imágenes se guardan en `wwwroot/uploads` (`LocalFileStorageService`) y se sirven con `UseStaticFiles`. El front arma su dirección con `ImageUrls.Resolve(FileUrl, ApiBaseUrl)`.
 - El detalle abre las fotos de la lámina en un visor (`ImageViewerDialog`) que simula el microscopio: cada foto se tomó con un aumento distinto y el orden (`Order`) va de la más lejana a la más cercana. Acercar y Alejar pasan entre esas fotos con una transición (`ZoomSteps`). El orden se cambia arrastrando las fotos en el detalle.
 - La carga de imágenes del detalle vive en `ImageUploadDialog`: recibe `SlideId` y `UsedOrders`, sube y cierra con `DialogResult.Ok(true)` para que la página recargue.
-- Una lámina admite hasta 6 imágenes ordenadas. El formulario de lámina nueva acepta varias fotos; el detalle sube una por una.
+- Una lámina admite hasta 6 imágenes ordenadas. El formulario de lámina nueva acepta varias fotos; el detalle sube varias fotos en una acción.
 - Hay búsqueda de láminas por código o nombre y filtro por caja. Las cajas solo se filtran por grupo.
 - CORS abierto (`AllowAnyOrigin`) solo en Development. En desarrollo el front corre en 5200 y el API en 5138.
 - La contraseña de Postgres está en `appsettings.json` (`postgres/postgres`, solo desarrollo).

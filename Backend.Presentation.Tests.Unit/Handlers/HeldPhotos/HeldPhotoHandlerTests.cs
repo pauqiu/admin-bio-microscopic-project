@@ -76,4 +76,40 @@ public class HeldPhotoHandlerTests
         photos.Verify(item => item.DeleteAsync(4), Times.Once);
         photos.Verify(item => item.DeleteAsync(5), Times.Once);
     }
+
+    [Fact]
+    public async Task Promote_WhenTheSecondImageThrows_DeletesTheSlideAndKeepsTheHeldPhotos()
+    {
+        var pile = new List<HeldPhoto>
+        {
+            new(4, ImageUrl.Create("/uploads/lejos.png"), ImageFileName.Create("lejos.png"), DateTime.UtcNow, 2, 1),
+            new(5, ImageUrl.Create("/uploads/cerca.png"), ImageFileName.Create("cerca.png"), DateTime.UtcNow, 2, 2)
+        };
+        var photos = new Mock<IHeldPhotoService>();
+        photos.Setup(item => item.ListAsync()).ReturnsAsync(pile);
+        var boxes = new Mock<IBoxService>();
+        boxes.Setup(item => item.FindByIdAsync(9)).ReturnsAsync(new Box(9, BoxNumber.Create(1), BoxName.Create("Caja"), 1));
+        var calls = 0;
+        var images = new Mock<IImageService>();
+        images.Setup(item => item.CreateAsync(It.IsAny<Image>()))
+            .ReturnsAsync((Image image) =>
+            {
+                calls++;
+                if (calls == 2) throw new InvalidOperationException("disco");
+                return image;
+            });
+        var slides = new Mock<ISlideService>();
+        slides.Setup(item => item.CreateAsync(It.IsAny<Slide>()))
+            .ReturnsAsync((Slide slide) => new Slide(8, slide.Code, slide.Name, slide.BoxId, slide.Description, slide.Observations));
+        slides.Setup(item => item.DeleteAsync(8)).Returns(Task.CompletedTask);
+
+        var result = await PromoteHeldStackHandler.HandleAsync(
+            2, new CreateSlideRequest("VISOR02", "Hoja", 9, null, null),
+            photos.Object, slides.Object, images.Object, boxes.Object);
+
+        var bad = Assert.IsType<BadRequest<ErrorResponse>>(result.Result);
+        Assert.Equal("No se pudo crear la lámina. Las fotos siguen en la pila.", Assert.Single(bad.Value!.Errors).Message);
+        slides.Verify(item => item.DeleteAsync(8), Times.Once);
+        photos.Verify(item => item.DeleteAsync(It.IsAny<int>()), Times.Never);
+    }
 }

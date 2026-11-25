@@ -10,6 +10,7 @@ public static class HeldPhotoEndpoints
     {
         builder.MapPost("/held-photos", UploadHeldPhotoHandler.HandleAsync).DisableAntiforgery();
         builder.MapGet("/held-photos", ListHeldPhotosHandler.HandleAsync);
+        builder.MapDelete("/held-photos/{id:int}", DeleteHeldPhotoHandler.HandleAsync);
         builder.MapPut("/held-photos/layout", SaveHeldPhotoLayoutHandler.HandleAsync);
         builder.MapPost("/held-photos/stacks/{stack:int}/slide", PromoteHeldStackHandler.HandleAsync);
         return builder;

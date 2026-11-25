@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace UCR.EB.BioMicroscopeAdmin.Frontend.Infrastructure.ApiClient;
 
@@ -100,14 +101,51 @@ internal sealed class BioMicroscopeApiClient(HttpClient http)
     {
         using var content = new MultipartFormDataContent();
         content.Add(new StreamContent(fileStream), "file", fileName);
-        return await ReadCreatedAsync<HeldPhotoResponse>(await http.PostAsync("held-photos", content));
+        var response = await http.PostAsync("held-photos", content);
+        await EnsureHeldPhotoAsync(response);
+        var result = await response.Content.ReadFromJsonAsync<HeldPhotoResponse>();
+        return result ?? throw new InvalidOperationException("Empty response body from API.");
     }
 
-    public async Task SaveHeldPhotoLayoutAsync(SaveHeldPhotoLayoutRequest body)
+    public async Task SaveHeldPhotoLayoutAsync(SaveHeldPhotoLayoutRequest body) =>
+        await EnsureHeldPhotoAsync(await http.PutAsJsonAsync("held-photos/layout", body));
+
+    public async Task DeleteHeldPhotoAsync(int id) =>
+        await EnsureHeldPhotoAsync(await http.DeleteAsync($"held-photos/{id}"));
+
+    public async Task<SlideResponse> PromoteHeldStackAsync(int stack, CreateSlideRequest body)
     {
-        (await http.PutAsJsonAsync("held-photos/layout", body)).EnsureSuccessStatusCode();
+        var response = await http.PostAsJsonAsync($"held-photos/stacks/{stack}/slide", body);
+        await EnsureHeldPhotoAsync(response);
+        var result = await response.Content.ReadFromJsonAsync<SlideResponse>();
+        return result ?? throw new InvalidOperationException("Empty response body from API.");
     }
 
-    public async Task<SlideResponse> PromoteHeldStackAsync(int stack, CreateSlideRequest body) =>
-        await ReadCreatedAsync<SlideResponse>(await http.PostAsJsonAsync($"held-photos/stacks/{stack}/slide", body));
+    private static async Task EnsureHeldPhotoAsync(HttpResponseMessage response)
+    {
+        if (response.IsSuccessStatusCode) return;
+        throw new HttpRequestException(await ReadHeldPhotoErrorAsync(response), null, response.StatusCode);
+    }
+
+    private static async Task<string> ReadHeldPhotoErrorAsync(HttpResponseMessage response)
+    {
+        try
+        {
+            var body = await response.Content.ReadFromJsonAsync<HeldPhotoErrorBody>();
+            var messages = body?.Errors?
+                .Select(error => error.Message)
+                .Where(message => !string.IsNullOrWhiteSpace(message))
+                .ToList();
+            if (messages is { Count: > 0 })
+                return string.Join(" ", messages);
+        }
+        catch (JsonException)
+        {
+        }
+
+        return "No se pudo completar. Inténtelo de nuevo.";
+    }
+
+    private sealed record HeldPhotoErrorBody(IReadOnlyList<HeldPhotoErrorItem>? Errors);
+    private sealed record HeldPhotoErrorItem(string? Field, string? Message);
 }

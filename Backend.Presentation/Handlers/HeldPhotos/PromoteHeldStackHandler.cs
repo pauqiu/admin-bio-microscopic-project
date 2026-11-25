@@ -42,10 +42,20 @@ public static class PromoteHeldStackHandler
             return TypedResults.BadRequest(new ErrorResponse(ex.Errors));
         }
 
-        foreach (var photo in pile)
+        try
         {
-            var image = new Image(photo.FileUrl, photo.FileName, ImageOrder.Create(photo.Position!.Value), created.Id);
-            await images.CreateAsync(image);
+            foreach (var photo in pile)
+            {
+                var image = new Image(photo.FileUrl, photo.FileName, ImageOrder.Create(photo.Position!.Value), created.Id);
+                await images.CreateAsync(image);
+            }
+        }
+        catch (Exception)
+        {
+            await slides.DeleteAsync(created.Id);
+            return TypedResults.BadRequest(new ErrorResponse([
+                new ValidationError("Stack", "No se pudo crear la lámina. Las fotos siguen en la pila.")
+            ]));
         }
 
         foreach (var photo in pile)

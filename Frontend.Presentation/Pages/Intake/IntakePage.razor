@@ -69,6 +69,7 @@
             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                 <img src="@Url(photo)" alt="@photo.FileName" style="@ThumbStyle" />
                 <MudText Typo="Typo.body2" Style="flex:1">@photo.FileName</MudText>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" Disabled="_busy" OnClick="@(() => Discard(photo.Id))">Eliminar</MudButton>
                 <MudButton Size="Size.Small" Variant="Variant.Outlined" Disabled="_busy" OnClick="@(() => AddPileFrom(photo.Id))">Pila nueva</MudButton>
                 @foreach (var stack in PileNumbers)
                 {
@@ -93,6 +94,7 @@
                 <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Disabled="_busy" aria-label="Subir en la pila" OnClick="@(() => Move(photo.Id, -1))" />
                 <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Disabled="_busy" aria-label="Bajar en la pila" OnClick="@(() => Move(photo.Id, 1))" />
                 <MudButton Size="Size.Small" Disabled="_busy" OnClick="@(() => Remove(photo.Id))">Quitar</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" Disabled="_busy" OnClick="@(() => Discard(photo.Id))">Eliminar</MudButton>
             </MudStack>
         }
         @if (members.Count > 0)
@@ -343,6 +345,34 @@
         await Persist();
     }
 
+    private async Task Discard(int id)
+    {
+        var photo = _photos.Single(item => item.Id == id);
+        var stack = photo.Stack;
+        _busy = true;
+        try
+        {
+            await HeldPhotoService.DeleteAsync(id);
+            _photos.RemoveAll(item => item.Id == id);
+            if (stack is int pile)
+            {
+                Renumber(pile);
+                if (Count(pile) == 0)
+                    ForgetPile(pile);
+                await SaveLayout();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(Explain(ex), Severity.Error);
+            await Reload();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
     private void Renumber(int stack)
     {
         var members = _photos.Where(photo => photo.Stack == stack).OrderBy(photo => photo.Position).ToList();
@@ -442,13 +472,8 @@
         }
     }
 
-    private static string Explain(Exception ex)
-    {
-        var message = ex.Message;
-        if (message.Contains("404", StringComparison.Ordinal))
-            return "No se encontró la caja. Créela en Cajas y vuelva aquí.";
-        if (message.Contains("400", StringComparison.Ordinal) || message.Contains("Bad Request", StringComparison.OrdinalIgnoreCase))
-            return "No se pudo crear. Revise que el código no esté repetido.";
-        return "No se pudo completar. Inténtelo de nuevo.";
-    }
+    private static string Explain(Exception ex) =>
+        ex is HttpRequestException { StatusCode: not null, Message: { Length: > 0 } message }
+            ? message
+            : "No se pudo completar. Inténtelo de nuevo.";
 }
