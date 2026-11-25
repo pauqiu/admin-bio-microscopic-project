@@ -1,0 +1,128 @@
+@using Microsoft.Extensions.Configuration
+@using UCR.EB.BioMicroscopeAdmin.Frontend.Presentation.Components
+@inject IConfiguration Configuration
+
+@* Visor como en el laboratorio: cada foto de la lámina se tomó con un aumento distinto y el orden
+   va de la más lejana a la más cercana. Acercar pasa a la foto siguiente con una transición que
+   agranda la actual y trae la nueva; Alejar hace lo contrario. *@
+<style>
+    .bm-viewer-layer {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        user-select: none;
+        transition: transform 700ms ease, opacity 700ms ease;
+    }
+
+    @@media (prefers-reduced-motion: reduce) {
+        .bm-viewer-layer { transition: none; }
+    }
+</style>
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@Current.FileName</MudText>
+        <MudText Typo="Typo.caption">@ZoomSteps.Describe(_index, Images.Count)</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div tabindex="0" @ref="_viewer" @onkeydown="OnKeyDown" style="outline: none;">
+            <MudStack Row="true" Justify="Justify.Center" AlignItems="AlignItems.Center" Spacing="1" Class="mb-2">
+                <MudTooltip Text="Alejar">
+                    <MudIconButton Icon="@Icons.Material.Filled.ZoomOut" aria-label="Alejar"
+                                   Disabled="@(!ZoomSteps.CanZoomOut(_index))" OnClick="@(() => Go(_index - 1))" />
+                </MudTooltip>
+                <MudText Typo="Typo.body2" Style="min-width: 7rem; text-align: center;">
+                    Aumento @(_index + 1) de @Images.Count
+                </MudText>
+                <MudTooltip Text="Acercar">
+                    <MudIconButton Icon="@Icons.Material.Filled.ZoomIn" aria-label="Acercar"
+                                   Disabled="@(!ZoomSteps.CanZoomIn(_index, Images.Count))" OnClick="@(() => Go(_index + 1))" />
+                </MudTooltip>
+            </MudStack>
+
+            <div style="position: relative; height: 65vh; overflow: hidden; background: #111; border-radius: 4px;">
+                @for (var i = 0; i < Images.Count; i++)
+                {
+                    var image = Images[i];
+                    var offset = i - _index;
+                    <img class="bm-viewer-layer" src="@Url(image)" alt="@(offset == 0 ? image.FileName : "")"
+                         aria-hidden="@(offset == 0 ? null : "true")" draggable="false"
+                         style="transform: scale(@ZoomSteps.LayerScale(offset).ToString(System.Globalization.CultureInfo.InvariantCulture)); opacity: @(offset == 0 ? 1 : 0);" />
+                }
+            </div>
+
+            @if (Images.Count > 1)
+            {
+                <MudText Typo="Typo.caption" Class="mt-2 d-block mud-text-secondary" Align="Align.Center">
+                    De la foto más lejana a la más cercana. Use Acercar, Alejar, las flechas o las miniaturas.
+                </MudText>
+                <div class="d-flex justify-center align-center flex-wrap gap-2 mt-1">
+                    <MudText Typo="Typo.caption">Lejos</MudText>
+                    @for (var i = 0; i < Images.Count; i++)
+                    {
+                        var index = i;
+                        <button type="button" aria-label="@($"Ir al aumento {index + 1}")" aria-current="@(index == _index ? "true" : null)"
+                                @onclick="@(() => Go(index))" style="@ThumbnailStyle(index)">
+                            <img src="@Url(Images[index])" alt="" loading="lazy" draggable="false"
+                                 style="width: 100%; height: 100%; object-fit: cover; display: block;" />
+                        </button>
+                    }
+                    <MudText Typo="Typo.caption">Cerca</MudText>
+                </div>
+            }
+            else
+            {
+                <MudText Typo="Typo.caption" Class="mt-2 d-block mud-text-secondary" Align="Align.Center">
+                    Esta lámina tiene una sola foto. Para poder acercar, suba las fotos tomadas con más aumento.
+                </MudText>
+            }
+        </div>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+
+    /// <summary>Fotos de la lámina ordenadas de la más lejana a la más cercana.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<ImageDto> Images { get; set; } = [];
+    [Parameter] public int StartIndex { get; set; }
+
+    private ElementReference _viewer;
+    private int _index;
+
+    private ImageDto Current => Images[_index];
+
+    // Solo al abrir: refrescar el título vuelve a pasar parámetros y no debe reiniciar la vista.
+    protected override void OnInitialized() => _index = ZoomSteps.Clamp(StartIndex, Images.Count);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await _viewer.FocusAsync();
+    }
+
+    private string Url(ImageDto image) => ImageUrls.Resolve(image.FileUrl, Configuration["ApiBaseUrl"]);
+
+    private string ThumbnailStyle(int index) =>
+        $"width: 64px; height: 64px; padding: 0; cursor: pointer; overflow: hidden; border-radius: 4px; " +
+        $"border: 2px solid {(index == _index ? "var(--mud-palette-primary)" : "transparent")};";
+
+    private void Go(int index)
+    {
+        index = ZoomSteps.Clamp(index, Images.Count);
+        if (index == _index) return;
+        _index = index;
+        // El título lo dibuja el contenedor del diálogo, que no se refresca solo.
+        Dialog.StateHasChanged();
+    }
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "ArrowRight" or "ArrowUp" or "+": Go(_index + 1); break;
+            case "ArrowLeft" or "ArrowDown" or "-": Go(_index - 1); break;
+        }
+    }
+}

@@ -28,8 +28,9 @@ El trabajo se guía por la **lista de actividades (EDT)** del equipo, no solo po
 ## Estado actual del código (verificado)
 
 - Sin autenticación ni roles. Todos los endpoints son públicos.
-- Las imágenes se guardan en `wwwroot/uploads` (`LocalFileStorageService`) y se sirven con `UseStaticFiles`.
-- El detalle de la lámina muestra las imágenes como tarjetas, sin visor ni zoom.
+- Las imágenes se guardan en `wwwroot/uploads` (`LocalFileStorageService`) y se sirven con `UseStaticFiles`. El front arma su dirección con `ImageUrls.Resolve(FileUrl, ApiBaseUrl)`.
+- El detalle abre las fotos de la lámina en un visor (`ImageViewerDialog`) que simula el microscopio: cada foto se tomó con un aumento distinto y el orden (`Order`) va de la más lejana a la más cercana. Acercar y Alejar pasan entre esas fotos con una transición (`ZoomSteps`). El orden se cambia arrastrando las fotos en el detalle.
+- La carga de imágenes del detalle vive en `ImageUploadDialog`: recibe `SlideId` y `UsedOrders`, sube y cierra con `DialogResult.Ok(true)` para que la página recargue.
 - Una lámina admite hasta 6 imágenes ordenadas. El formulario de lámina nueva acepta varias fotos; el detalle sube una por una.
 - Hay búsqueda de láminas por código o nombre y filtro por caja. Las cajas solo se filtran por grupo.
 - CORS abierto (`AllowAnyOrigin`) solo en Development. En desarrollo el front corre en 5200 y el API en 5138.
@@ -77,9 +78,9 @@ Primero se mezclan el esqueleto y la EDT 1. Después cada paquete avanza por su 
 
 | EDT | Paquete | Responsable | Archivos que toca | No toca |
 |-----|---------|-------------|-------------------|---------|
-| 1 | Visualización: ampliar, acercar y alejar | Dev 1 | `ImageViewerDialog.razor`, `ImageUrls.cs`, detalle de lámina | — |
+| 1 | Visualización: ampliar, acercar y alejar | Dev 1 | `ImageViewerDialog.razor`, `ZoomSteps.cs`, `ImageUrls.cs`, detalle de lámina | — |
 | 2 | Carga simultánea de fotografías | Dev 3 | `ImageUploadDialog.razor`, servicio de imágenes, endpoint de carga | Páginas de grupos, cajas y láminas; visor |
 | 3 y 4 | Navegación jerárquica, búsqueda y filtrado de cajas | Dev 2 | `GroupsPage.razor`, `BoxesPage.razor`, `SlidesPage.razor`, listado de cajas | Detalle de lámina e imágenes |
-| 5 | Documentación y puesta en funcionamiento | PM | `docs/`, archivos de despliegue | Código de la app |
+| 5 | Documentación y puesta en funcionamiento | PM | `docs/`, `GuiaUso.razor`, README, archivos de despliegue | Resto del código de la app |
 
 Si alguien necesita tocar un archivo de otro paquete, lo avisa antes en el grupo.

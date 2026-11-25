@@ -18,4 +18,8 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Frontend.Presentation\UCR.EB.BioMicroscopeAdmin.Frontend.Presentation.csproj" />
+  </ItemGroup>
+
 </Project>

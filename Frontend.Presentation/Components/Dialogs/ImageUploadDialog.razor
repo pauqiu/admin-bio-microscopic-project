@@ -1,3 +1,6 @@
+@inject IImageService ImageService
+@inject ISnackbar Snackbar
+
 <MudDialog>
     <TitleContent>Subir Imagen</TitleContent>
     <DialogContent>
@@ -5,7 +8,7 @@
             <MudFileUpload T="IBrowserFile" FilesChanged="OnFileChanged" Accept="image/*">
                 <ActivatorContent>
                     <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                               StartIcon="@Icons.Material.Filled.CloudUpload">
+                               StartIcon="@Icons.Material.Filled.CloudUpload" Disabled="_uploading">
                         Seleccionar archivo
                     </MudButton>
                 </ActivatorContent>
@@ -17,27 +20,62 @@
         </MudStack>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancelar</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Disabled="@(_file is null)">
+        <MudButton OnClick="Cancel" Disabled="_uploading">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Disabled="@(_file is null || _uploading)">
             Subir
         </MudButton>
     </DialogActions>
 </MudDialog>
 
 @code {
+    public const int MaxImages = 6;
+    private const long MaxFileBytes = 10 * 1024 * 1024;
+
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
 
+    /// <summary>Lámina que recibe las imágenes.</summary>
+    [Parameter, EditorRequired] public int SlideId { get; set; }
+
+    /// <summary>Órdenes que ya ocupan las imágenes actuales de la lámina.</summary>
+    [Parameter] public IReadOnlyCollection<int> UsedOrders { get; set; } = [];
+
     private IBrowserFile? _file;
+    private bool _uploading;
 
     private void OnFileChanged(IBrowserFile? file) => _file = file;
 
-    private void Submit()
+    // El diálogo sube y avisa el resultado. La página solo recarga si se subió algo.
+    private async Task Submit()
     {
         if (_file is null) return;
-        MudDialog.Close(DialogResult.Ok(new ImageUploadResult(_file)));
+
+        var nextOrder = Enumerable.Range(1, MaxImages).FirstOrDefault(o => !UsedOrders.Contains(o));
+        if (nextOrder == 0)
+        {
+            Snackbar.Add($"La lámina ya tiene {MaxImages} imágenes.", Severity.Warning);
+            return;
+        }
+
+        _uploading = true;
+        try
+        {
+            await using var stream = _file.OpenReadStream(maxAllowedSize: MaxFileBytes);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+            await ImageService.UploadAsync(SlideId, ms, _file.Name, nextOrder);
+            Snackbar.Add("Imagen subida correctamente.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al subir imagen: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _uploading = false;
+        }
     }
 
     private void Cancel() => MudDialog.Cancel();
-
-    public record ImageUploadResult(IBrowserFile File);
 }
