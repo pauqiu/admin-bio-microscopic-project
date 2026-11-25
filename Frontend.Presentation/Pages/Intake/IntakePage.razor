@@ -182,7 +182,7 @@
         foreach (var rejected in screened.Rejected)
             _batchLines.Add(($"{rejected.FileName} · {rejected.Reason}", Color.Error));
 
-        var saved = new List<int>();
+        var saved = new List<(int Id, int SelectionIndex)>();
         _busy = true;
         try
         {
@@ -199,7 +199,7 @@
                     await stream.CopyToAsync(ms);
                     ms.Position = 0;
                     var created = await HeldPhotoService.UploadAsync(ms, file.Name);
-                    saved.Add(created.Id);
+                    saved.Add((created.Id, accepted.Index));
                     if (total <= 12)
                         _batchLines.Add(($"{file.Name} · Subida", Color.Success));
                 }
@@ -209,12 +209,10 @@
                 }
             }
 
-            if (saved.Count > 0)
-                _batchLines.Insert(0, ($"{saved.Count} fotos guardadas. Ya quedaron en pilas de hasta 6, en el orden en que las eligió.", Color.Success));
-
             await Reload();
-            if (Place(saved))
-                await SaveLayout();
+            var leftOut = screened.Rejected.Count + screened.Accepted.Count - saved.Count;
+            if (saved.Count > 0 && Place(saved) && await SaveLayout())
+                _batchLines.Insert(0, (SavedLine(saved.Count, leftOut), Color.Success));
         }
         finally
         {
@@ -237,30 +235,43 @@
         }
     }
 
-    private bool PackUnassigned() => Place(Unassigned.Select(photo => photo.Id).ToList());
+    private bool PackUnassigned() =>
+        Place(Unassigned.Select((photo, index) => (photo.Id, index)).ToList());
 
-    private bool Place(IReadOnlyList<int> ids)
+    private bool Place(IReadOnlyList<(int Id, int SelectionIndex)> items)
     {
-        var loose = new List<HeldPhotoDto>();
-        foreach (var id in ids)
+        var loose = new List<UploadedSelection>();
+        foreach (var item in items)
         {
-            var photo = _photos.FirstOrDefault(item => item.Id == id && item.Stack is null);
+            var photo = _photos.FirstOrDefault(candidate => candidate.Id == item.Id && candidate.Stack is null);
             if (photo is not null)
-                loose.Add(photo);
+                loose.Add(new UploadedSelection(photo.Id, item.SelectionIndex));
         }
 
         if (loose.Count == 0) return false;
-        var next = PileNumbers.DefaultIfEmpty(0).Max() + 1;
-        for (var i = 0; i < loose.Count; i++)
+        var first = PileNumbers.DefaultIfEmpty(0).Max() + 1;
+        foreach (var placement in PhotoStacks.Pack(loose, first))
         {
-            Replace(loose[i] with
-            {
-                Stack = next + (i / PhotoStacks.MaxPerStack),
-                Position = (i % PhotoStacks.MaxPerStack) + 1
-            });
+            var photo = _photos.First(candidate => candidate.Id == placement.Id);
+            Replace(photo with { Stack = placement.Stack, Position = placement.Position });
         }
 
         return true;
+    }
+
+    private static string SavedLine(int saved, int leftOut)
+    {
+        var head = saved == 1 ? "1 foto guardada" : $"{saved} fotos guardadas";
+        if (leftOut == 0)
+        {
+            var tail = saved == 1
+                ? "Ya quedó en una pila, en el orden en que la eligió."
+                : "Ya quedaron en pilas de hasta 6, en el orden en que las eligió.";
+            return $"{head}. {tail}";
+        }
+
+        var omitted = leftOut == 1 ? "1 quedó fuera" : $"{leftOut} quedaron fuera";
+        return $"{head}. {omitted}. Las pilas conservan los lugares originales.";
     }
 
     private async Task AddPileFrom(int id)
@@ -326,24 +337,26 @@
         }
     }
 
-    private async Task SaveLayout()
+    private async Task<bool> SaveLayout()
     {
         var errors = PhotoStacks.Validate(_photos.Select(photo => new StackPlacement(photo.Id, photo.Stack, photo.Position)).ToList());
         if (errors.Count > 0)
         {
             Snackbar.Add(errors[0], Severity.Warning);
             await Reload();
-            return;
+            return false;
         }
 
         try
         {
             await HeldPhotoService.SaveLayoutAsync(_photos.Select(photo => new HeldPhotoLayoutItemDto(photo.Id, photo.Stack, photo.Position)).ToList());
+            return true;
         }
         catch (Exception ex)
         {
             Snackbar.Add(Explain(ex), Severity.Error);
             await Reload();
+            return false;
         }
     }
 

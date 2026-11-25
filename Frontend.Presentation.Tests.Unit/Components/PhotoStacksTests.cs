@@ -30,4 +30,43 @@ public class PhotoStacksTests
         Assert.Contains(repeated, error => error.Contains("repetida", StringComparison.Ordinal));
         Assert.Contains(half, error => error.Contains("juntas", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void Pack_SplitsThirteenPhotosIntoPilesOfSixSixAndOne()
+    {
+        var uploaded = Enumerable.Range(0, 13)
+            .Select(index => new UploadedSelection(index + 1, index))
+            .ToList();
+
+        var packed = PhotoStacks.Pack(uploaded, 1);
+
+        Assert.Equal(6, packed.Count(photo => photo.Stack == 1));
+        Assert.Equal(6, packed.Count(photo => photo.Stack == 2));
+        Assert.Equal(1, packed.Count(photo => photo.Stack == 3));
+        Assert.Equal(Enumerable.Range(1, 6), Positions(packed, 1));
+        Assert.Equal(Enumerable.Range(1, 6), Positions(packed, 2));
+        Assert.Equal(1, packed.Single(photo => photo.Stack == 3).Position);
+    }
+
+    [Fact]
+    public void Pack_KeepsTheNextPileWhenASelectionIndexIsMissing()
+    {
+        var uploaded = Enumerable.Range(0, 7)
+            .Where(index => index != 2)
+            .Select(index => new UploadedSelection(100 + index, index))
+            .ToList();
+
+        var packed = PhotoStacks.Pack(uploaded, 1);
+        var first = packed.Where(photo => photo.Stack == 1).OrderBy(photo => photo.Position).ToList();
+
+        Assert.Equal(5, first.Count);
+        Assert.Equal(Enumerable.Range(1, 5), first.Select(photo => photo.Position!.Value));
+        Assert.Equal(new[] { 100, 101, 103, 104, 105 }, first.Select(photo => photo.Id));
+        var next = Assert.Single(packed, photo => photo.Id == 106);
+        Assert.Equal(2, next.Stack);
+        Assert.Equal(1, next.Position);
+    }
+
+    private static IEnumerable<int> Positions(IReadOnlyList<StackPlacement> packed, int stack) =>
+        packed.Where(photo => photo.Stack == stack).OrderBy(photo => photo.Position).Select(photo => photo.Position!.Value);
 }
