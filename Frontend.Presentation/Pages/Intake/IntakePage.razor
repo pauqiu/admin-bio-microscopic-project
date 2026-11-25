@@ -85,7 +85,7 @@
 {
     var members = Members(stack);
     <MudPaper Class="pa-3 my-3" Elevation="2">
-        <MudText Typo="Typo.subtitle1">Pila @stack · @members.Count fotos</MudText>
+        <MudText Typo="Typo.subtitle1">Pila @stack · @(members.Count == 1 ? "1 foto" : $"{members.Count} fotos")</MudText>
         @foreach (var photo in members)
         {
             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="my-1">
