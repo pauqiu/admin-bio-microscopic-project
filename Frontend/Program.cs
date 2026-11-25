@@ -10,6 +10,6 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 
 builder.Services.AddMudServices();
 builder.Services.AddFrontendServices(
-    builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5000/");
+    builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5138/");
 
 await builder.Build().RunAsync();

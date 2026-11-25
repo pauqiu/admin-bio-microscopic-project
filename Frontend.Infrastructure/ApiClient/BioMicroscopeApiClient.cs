@@ -4,8 +4,6 @@ namespace UCR.EB.BioMicroscopeAdmin.Frontend.Infrastructure.ApiClient;
 
 /// <summary>
 /// Typed HTTP client that wraps <see cref="HttpClient"/> using System.Net.Http.Json.
-/// Follows the Kiota-style request-adapter pattern; can be replaced by a generated
-/// client (see kiota-config.json) once the backend exposes its OpenAPI document.
 /// </summary>
 internal sealed class BioMicroscopeApiClient(HttpClient http)
 {

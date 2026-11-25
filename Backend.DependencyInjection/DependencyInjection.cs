@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using UCR.EB.BioMicroscopeAdmin.Backend.Domain;
 using UCR.EB.BioMicroscopeAdmin.Backend.Application;
 using UCR.EB.BioMicroscopeAdmin.Backend.Infrastructure;
@@ -43,12 +45,25 @@ public static class DependencyInjection
                     System.Text.Json.JsonException => 400,
                     _ => 500
                 };
+                var services = context.RequestServices;
+                if (context.Response.StatusCode == 500 && ex is not null)
+                {
+                    services.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>()
+                        .CreateLogger("GlobalExceptionHandler")
+                        .LogError(ex, "Unhandled exception on {Method} {Path}",
+                            context.Request.Method, context.Request.Path);
+                }
+
+                // El detalle de la excepción puede revelar rutas, SQL o datos internos.
+                var isDevelopment = services
+                    .GetRequiredService<Microsoft.Extensions.Hosting.IHostEnvironment>()
+                    .IsDevelopment();
                 await context.Response.WriteAsJsonAsync(new
                 {
                     error = context.Response.StatusCode == 400
                         ? "Malformed request."
                         : "An unexpected error occurred.",
-                    details = ex?.Message
+                    details = isDevelopment ? ex?.Message : null
                 });
             });
         });
