@@ -76,7 +76,8 @@ else
     else
     {
         <MudText Typo="Typo.body2" Class="mb-2 mud-text-secondary">
-            Arrastre las imágenes para cambiar su orden. Haga clic en una imagen para abrirla en el visor.
+            Ordene las fotos de la más lejana a la más cercana arrastrándolas: en el visor, Acercar pasa a la siguiente.
+            Haga clic en una foto para abrirla en el visor.
         </MudText>
         <MudDropContainer T="ImageDto" @ref="_dropContainer" Items="_images"
                           ItemsSelector="@((item, zone) => true)"
@@ -92,7 +93,7 @@ else
                          style="width: 100%; height: 200px; object-fit: cover; cursor: zoom-in; display: block;" />
                     <MudCardContent>
                         <MudText Typo="Typo.body2">@context.FileName</MudText>
-                        <MudChip T="string" Size="Size.Small" Color="Color.Primary">Orden: @context.Order</MudChip>
+                        <MudChip T="string" Size="Size.Small" Color="Color.Primary">Aumento @context.Order</MudChip>
                     </MudCardContent>
                     <MudCardActions>
                         <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
