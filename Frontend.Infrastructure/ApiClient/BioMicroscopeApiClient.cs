@@ -92,4 +92,22 @@ internal sealed class BioMicroscopeApiClient(HttpClient http)
 
     public async Task DeleteImageAsync(int id) =>
         (await http.DeleteAsync($"images/{id}")).EnsureSuccessStatusCode();
+
+    public Task<List<HeldPhotoResponse>?> GetHeldPhotosAsync() =>
+        http.GetFromJsonAsync<List<HeldPhotoResponse>>("held-photos");
+
+    public async Task<HeldPhotoResponse> UploadHeldPhotoAsync(Stream fileStream, string fileName)
+    {
+        using var content = new MultipartFormDataContent();
+        content.Add(new StreamContent(fileStream), "file", fileName);
+        return await ReadCreatedAsync<HeldPhotoResponse>(await http.PostAsync("held-photos", content));
+    }
+
+    public async Task SaveHeldPhotoLayoutAsync(SaveHeldPhotoLayoutRequest body)
+    {
+        (await http.PutAsJsonAsync("held-photos/layout", body)).EnsureSuccessStatusCode();
+    }
+
+    public async Task<SlideResponse> PromoteHeldStackAsync(int stack, CreateSlideRequest body) =>
+        await ReadCreatedAsync<SlideResponse>(await http.PostAsJsonAsync($"held-photos/stacks/{stack}/slide", body));
 }

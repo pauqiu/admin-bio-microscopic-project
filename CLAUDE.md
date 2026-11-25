@@ -35,6 +35,8 @@ El trabajo se guía por la **lista de actividades (EDT)** del equipo, no solo po
 - Hay búsqueda de láminas por código o nombre y filtro por caja. Las cajas solo se filtran por grupo.
 - CORS abierto (`AllowAnyOrigin`) solo en Development. En desarrollo el front corre en 5200 y el API en 5138.
 - La contraseña de Postgres está en `appsettings.json` (`postgres/postgres`, solo desarrollo).
+- El detalle de una lámina sube varias fotos en una acción. Cada archivo sale con su resultado. La primera de la selección ocupa el aumento libre más bajo.
+- La página Carga (`/carga`) guarda fotos sin lámina, las agrupa en pilas de hasta 6 y convierte una pila en lámina eligiendo el código y la caja.
 
 ## Stack y mapa del repo
 
@@ -79,7 +81,7 @@ Primero se mezclan el esqueleto y la EDT 1. Después cada paquete avanza por su 
 | EDT | Paquete | Responsable | Archivos que toca | No toca |
 |-----|---------|-------------|-------------------|---------|
 | 1 | Visualización: ampliar, acercar y alejar | Dev 1 | `ImageViewerDialog.razor`, `ZoomSteps.cs`, `ImageUrls.cs`, detalle de lámina | — |
-| 2 | Carga simultánea de fotografías | Dev 3 | `ImageUploadDialog.razor`, servicio de imágenes, endpoint de carga | Páginas de grupos, cajas y láminas; visor |
+| 2 | Carga simultánea de fotografías | Dev 3 | `ImageUploadDialog.razor`, `UploadPlan.cs`, `UploadBatch.cs`, `Pages/Intake/IntakePage.razor`, `PhotoStacks.cs`, entidad `HeldPhoto` y endpoints `/held-photos` | Páginas de grupos, cajas y láminas; visor; `SlideFormDialog.razor` |
 | 3 y 4 | Navegación jerárquica, búsqueda y filtrado de cajas | Dev 2 | `GroupsPage.razor`, `BoxesPage.razor`, `SlidesPage.razor`, listado de cajas | Detalle de lámina e imágenes |
 | 5 | Documentación y puesta en funcionamiento | PM | `docs/`, `GuiaUso.razor`, README, archivos de despliegue | Resto del código de la app |
 

@@ -1,0 +1,260 @@
+@page "/carga"
+@using UCR.EB.BioMicroscopeAdmin.Frontend.Application.Dtos.HeldPhotos
+@using UCR.EB.BioMicroscopeAdmin.Frontend.Presentation.Components
+@inject IHeldPhotoService HeldPhotoService
+@inject IBoxService BoxService
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h5" Class="mb-2">Carga</MudText>
+<MudText Typo="Typo.body2" Class="mb-3">
+    Suelte las fotos de varias muestras. Cada archivo puede pesar hasta 10 MB.
+    Después ármelas en pilas de hasta 6. La primera de la pila es la más lejana.
+    La lámina, con su código y su caja, se crea desde la pila.
+</MudText>
+
+<MudFileUpload T="IReadOnlyList<IBrowserFile>" FilesChanged="UploadMany" Accept="image/*" MaximumFileCount="1000">
+    <ActivatorContent>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.CloudUpload" Disabled="_busy">
+            Seleccionar fotos
+        </MudButton>
+    </ActivatorContent>
+</MudFileUpload>
+
+@foreach (var line in _batchLines)
+{
+    <MudText Typo="Typo.body2" Class="mt-1" Color="@line.Color">@line.Text</MudText>
+}
+
+@if (_lastSlideId is int createdId)
+{
+    <MudLink Href="@($"/slides/{createdId}")">Abrir la lámina creada</MudLink>
+}
+
+<MudStack Row="true" Class="my-3">
+    <MudButton Variant="Variant.Outlined" OnClick="AddPile" Disabled="@(_busy || !Unassigned.Any())">Nueva pila</MudButton>
+</MudStack>
+
+<MudText Typo="Typo.subtitle1">Fotos sin pila</MudText>
+@foreach (var photo in Unassigned)
+{
+    <MudPaper Class="pa-2 my-1" Elevation="1">
+        <MudStack Row="true" AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.body2" Style="flex:1">@photo.FileName</MudText>
+            @foreach (var stack in PileNumbers)
+            {
+                <MudButton Size="Size.Small" Disabled="@(_busy || Count(stack) >= PhotoStacks.MaxPerStack)"
+                           OnClick="@(() => MoveToPile(photo.Id, stack))">Pila @stack</MudButton>
+            }
+        </MudStack>
+    </MudPaper>
+}
+
+@foreach (var stack in PileNumbers)
+{
+    <MudPaper Class="pa-3 my-3" Elevation="2">
+        <MudText Typo="Typo.subtitle1">Pila @stack</MudText>
+        @foreach (var photo in Members(stack))
+        {
+            <MudStack Row="true" AlignItems="AlignItems.Center" Class="my-1">
+                <MudText Typo="Typo.body2" Style="flex:1">@photo.FileName · @Label(photo, stack)</MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Disabled="_busy" OnClick="@(() => Move(photo.Id, -1))" />
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Disabled="_busy" OnClick="@(() => Move(photo.Id, 1))" />
+                <MudButton Size="Size.Small" Disabled="_busy" OnClick="@(() => Remove(photo.Id))">Quitar</MudButton>
+            </MudStack>
+        }
+        @if (Members(stack).Count > 0)
+        {
+            <MudTextField T="string" Value="@CodeOf(stack)" ValueChanged="@(value => _codes[stack] = value)" Label="Código" MaxLength="20" Variant="Variant.Outlined" Class="mt-2" />
+            <MudTextField T="string" Value="@NameOf(stack)" ValueChanged="@(value => _names[stack] = value)" Label="Nombre" MaxLength="150" Variant="Variant.Outlined" Class="mt-2" />
+            <MudSelect T="int" Value="@BoxOf(stack)" ValueChanged="@(value => _boxes[stack] = value)" Label="Caja" Variant="Variant.Outlined" Class="mt-2" Disabled="@(_boxList.Count == 0)">
+                @foreach (var box in _boxList)
+                {
+                    <MudSelectItem T="int" Value="@box.Id">@box.Number — @box.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudText Typo="Typo.caption">La caja ya pertenece a un grupo. Aquí no se crean grupos ni cajas.</MudText>
+            <MudButton Class="mt-2" Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_busy || _boxList.Count == 0)"
+                       OnClick="@(() => Promote(stack))">Crear lámina</MudButton>
+        }
+    </MudPaper>
+}
+
+@code {
+    private readonly List<HeldPhotoDto> _photos = [];
+    private readonly List<(string Text, Color Color)> _batchLines = [];
+    private readonly Dictionary<int, string> _codes = [];
+    private readonly Dictionary<int, string> _names = [];
+    private readonly Dictionary<int, int> _boxes = [];
+    private List<BoxDto> _boxList = [];
+    private int? _lastSlideId;
+    private bool _busy;
+
+    private string CodeOf(int stack) => _codes.TryGetValue(stack, out var value) ? value : "";
+    private string NameOf(int stack) => _names.TryGetValue(stack, out var value) ? value : "";
+    private int BoxOf(int stack) => _boxes.TryGetValue(stack, out var value) ? value : (_boxList.FirstOrDefault()?.Id ?? 0);
+
+    private IEnumerable<HeldPhotoDto> Unassigned => _photos.Where(photo => photo.Stack is null);
+    private IEnumerable<int> PileNumbers => _photos.Where(photo => photo.Stack is not null).Select(photo => photo.Stack!.Value).Distinct().Order();
+
+    private List<HeldPhotoDto> Members(int stack) =>
+        _photos.Where(photo => photo.Stack == stack).OrderBy(photo => photo.Position).ToList();
+
+    private int Count(int stack) => Members(stack).Count;
+
+    private string Label(HeldPhotoDto photo, int stack)
+    {
+        var members = Members(stack);
+        if (photo.Position == 1) return "Aumento 1 · la más lejana";
+        if (photo.Position == members.Count) return $"Aumento {photo.Position} · la más cercana";
+        return $"Aumento {photo.Position}";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _boxList = await BoxService.ListAllAsync();
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        _photos.Clear();
+        _photos.AddRange(await HeldPhotoService.ListAsync());
+    }
+
+    private async Task UploadMany(IReadOnlyList<IBrowserFile>? files)
+    {
+        _batchLines.Clear();
+        var selected = files ?? [];
+        var screened = UploadPlan.Screen(selected.Select((file, index) => new UploadCandidate(index, file.Name, file.Size)).ToList());
+        foreach (var rejected in screened.Rejected)
+            _batchLines.Add(($"{rejected.FileName} · {rejected.Reason}", Color.Error));
+
+        _busy = true;
+        try
+        {
+            foreach (var accepted in screened.Accepted)
+            {
+                var file = selected[accepted.Index];
+                try
+                {
+                    await using var stream = file.OpenReadStream(maxAllowedSize: UploadPlan.MaxFileBytes);
+                    using var ms = new MemoryStream();
+                    await stream.CopyToAsync(ms);
+                    ms.Position = 0;
+                    await HeldPhotoService.UploadAsync(ms, file.Name);
+                    _batchLines.Add(($"{file.Name} · Subida", Color.Success));
+                }
+                catch (Exception ex)
+                {
+                    _batchLines.Add(($"{file.Name} · {ex.Message}", Color.Error));
+                }
+            }
+            await Reload();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task AddPile()
+    {
+        var photo = Unassigned.FirstOrDefault();
+        if (photo is null) return;
+        var next = PileNumbers.DefaultIfEmpty(0).Max() + 1;
+        Replace(photo with { Stack = next, Position = 1 });
+        await Persist();
+    }
+
+    private async Task MoveToPile(int id, int stack)
+    {
+        if (Count(stack) >= PhotoStacks.MaxPerStack) return;
+        var photo = _photos.Single(item => item.Id == id);
+        Replace(photo with { Stack = stack, Position = Count(stack) + 1 });
+        Renumber(stack);
+        await Persist();
+    }
+
+    private async Task Move(int id, int delta)
+    {
+        var photo = _photos.Single(item => item.Id == id);
+        if (photo.Stack is not int stack || photo.Position is not int position) return;
+        var neighbor = Members(stack).FirstOrDefault(item => item.Position == position + delta);
+        if (neighbor is null) return;
+        Replace(photo with { Position = neighbor.Position });
+        Replace(neighbor with { Position = position });
+        await Persist();
+    }
+
+    private async Task Remove(int id)
+    {
+        var photo = _photos.Single(item => item.Id == id);
+        var stack = photo.Stack;
+        Replace(photo with { Stack = null, Position = null });
+        if (stack is int pile) Renumber(pile);
+        await Persist();
+    }
+
+    private void Renumber(int stack)
+    {
+        var members = _photos.Where(photo => photo.Stack == stack).OrderBy(photo => photo.Position).ToList();
+        for (var i = 0; i < members.Count; i++)
+            Replace(members[i] with { Position = i + 1 });
+    }
+
+    private void Replace(HeldPhotoDto updated)
+    {
+        var index = _photos.FindIndex(photo => photo.Id == updated.Id);
+        _photos[index] = updated;
+    }
+
+    private async Task Persist()
+    {
+        var errors = PhotoStacks.Validate(_photos.Select(photo => new StackPlacement(photo.Id, photo.Stack, photo.Position)).ToList());
+        if (errors.Count > 0)
+        {
+            Snackbar.Add(errors[0], Severity.Warning);
+            await Reload();
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await HeldPhotoService.SaveLayoutAsync(_photos.Select(photo => new HeldPhotoLayoutItemDto(photo.Id, photo.Stack, photo.Position)).ToList());
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+            await Reload();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task Promote(int stack)
+    {
+        var code = CodeOf(stack);
+        var name = NameOf(stack);
+        var boxId = BoxOf(stack);
+        _busy = true;
+        try
+        {
+            var slide = await HeldPhotoService.PromoteAsync(stack, new CreateSlideDto(code, name, boxId, null, null));
+            _lastSlideId = slide.Id;
+            Snackbar.Add($"Lámina {slide.Code} creada.", Severity.Success);
+            await Reload();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

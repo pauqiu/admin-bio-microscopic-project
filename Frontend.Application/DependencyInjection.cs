@@ -14,6 +14,7 @@ public static class DependencyInjection
         services.AddScoped<IBoxService, BoxService>();
         services.AddScoped<ISlideService, SlideService>();
         services.AddScoped<IImageService, ImageService>();
+        services.AddScoped<IHeldPhotoService, HeldPhotoService>();
         return services;
     }
 }
