@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using UCR.EB.BioMicroscopeAdmin.Backend.Domain.Entities;
 using UCR.EB.BioMicroscopeAdmin.Backend.Domain.Exceptions;
+using UCR.EB.BioMicroscopeAdmin.Backend.Domain.HeldPhotos;
 using UCR.EB.BioMicroscopeAdmin.Backend.Domain.Repositories;
 using UCR.EB.BioMicroscopeAdmin.Backend.Infrastructure.Persistence;
 
@@ -25,6 +26,37 @@ internal sealed class EfHeldPhotoRepository(AppDbContext context) : IHeldPhotoRe
         tracked.Stack = stack;
         tracked.Position = position;
         await context.SaveChangesAsync();
+    }
+
+    public async Task SaveLayoutAsync(IReadOnlyList<HeldPhotoPlacement> placements)
+    {
+        await using var transaction = await context.Database.BeginTransactionAsync();
+
+        var ids = placements.Select(item => item.Id).ToList();
+        var rows = await context.HeldPhotos.Where(photo => ids.Contains(photo.Id)).ToListAsync();
+        var found = rows.Select(photo => photo.Id).ToHashSet();
+        var missing = ids.Where(id => !found.Contains(id)).Cast<int?>().FirstOrDefault();
+        if (missing is int missingId)
+            throw new NotFoundException($"Held photo {missingId} not found.");
+
+        foreach (var row in rows)
+        {
+            row.Stack = null;
+            row.Position = null;
+        }
+
+        await context.SaveChangesAsync();
+
+        var byId = placements.ToDictionary(item => item.Id);
+        foreach (var row in rows)
+        {
+            var placement = byId[row.Id];
+            row.Stack = placement.Stack;
+            row.Position = placement.Position;
+        }
+
+        await context.SaveChangesAsync();
+        await transaction.CommitAsync();
     }
 
     public async Task DeleteAsync(int id)

@@ -10,14 +10,8 @@ internal class HeldPhotoService(IHeldPhotoRepository repository) : IHeldPhotoSer
 
     public Task<List<HeldPhoto>> ListAsync() => repository.ListAsync();
 
-    public async Task SaveLayoutAsync(IReadOnlyList<HeldPhotoPlacement> placements)
-    {
-        foreach (var item in placements)
-            await repository.UpdatePlacementAsync(item.Id, null, null);
-
-        foreach (var item in placements)
-            await repository.UpdatePlacementAsync(item.Id, item.Stack, item.Position);
-    }
+    public Task SaveLayoutAsync(IReadOnlyList<HeldPhotoPlacement> placements) =>
+        repository.SaveLayoutAsync(placements);
 
     public Task DeleteAsync(int id) => repository.DeleteAsync(id);
 }
