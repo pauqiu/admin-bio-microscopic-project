@@ -9,6 +9,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<Box> Boxes => Set<Box>();
     public DbSet<Slide> Slides => Set<Slide>();
     public DbSet<Image> Images => Set<Image>();
+    public DbSet<HeldPhoto> HeldPhotos => Set<HeldPhoto>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

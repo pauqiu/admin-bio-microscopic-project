@@ -72,6 +72,51 @@ namespace UCR.EB.BioMicroscopeAdmin.Backend.Infrastructure.Persistence.Migration
                     b.ToTable("grupo", (string)null);
                 });
 
+            modelBuilder.Entity("UCR.EB.BioMicroscopeAdmin.Backend.Domain.Entities.HeldPhoto", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("nombre_archivo");
+
+                    b.Property<string>("FileUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("url_archivo");
+
+                    b.Property<int?>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("posicion");
+
+                    b.Property<int?>("Stack")
+                        .HasColumnType("integer")
+                        .HasColumnName("pila");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fecha_carga");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Stack", "Position")
+                        .IsUnique()
+                        .HasFilter("pila IS NOT NULL AND posicion IS NOT NULL");
+
+                    b.ToTable("foto_pendiente", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_foto_pendiente_posicion", "posicion IS NULL OR (posicion >= 1 AND posicion <= 6)");
+                        });
+                });
+
             modelBuilder.Entity("UCR.EB.BioMicroscopeAdmin.Backend.Domain.Entities.Image", b =>
                 {
                     b.Property<int>("Id")
