@@ -1,16 +1,16 @@
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">
-            <MudIcon Icon="@Icons.Material.Filled.Warning" Class="mr-2" Color="Color.Warning" />
-            @Title
-        </MudText>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" Size="Size.Small" />
+            <MudText Typo="Typo.h6" Class="my-0">@Title</MudText>
+        </MudStack>
     </TitleContent>
     <DialogContent>
         <MudText>@Message</MudText>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel">Cancelar</MudButton>
-        <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="Confirm">Eliminar</MudButton>
+        <MudButton Color="@ConfirmColor" Variant="Variant.Filled" OnClick="Confirm">@ConfirmText</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -19,6 +19,8 @@
 
     [Parameter] public string Title { get; set; } = "Confirmar eliminación";
     [Parameter] public string Message { get; set; } = "¿Está seguro de que desea eliminar este elemento?";
+    [Parameter] public string ConfirmText { get; set; } = "Eliminar";
+    [Parameter] public Color ConfirmColor { get; set; } = Color.Error;
 
     private void Confirm() => MudDialog.Close(DialogResult.Ok(true));
     private void Cancel() => MudDialog.Cancel();
