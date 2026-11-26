@@ -59,8 +59,22 @@
     private int? _filterBoxId;
     private string _searchText = "";
     private bool _loading;
+    private int? _lastAppliedBoxId;
+
+    [SupplyParameterFromQuery(Name = "boxId")]
+    public int? BoxId { get; set; }
 
     protected override async Task OnInitializedAsync() => await LoadBoxes();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_lastAppliedBoxId == BoxId) return;
+
+        _filterBoxId = BoxId;
+        _lastAppliedBoxId = BoxId;
+        if (_table is not null)
+            await _table.ReloadServerData();
+    }
 
     private async Task LoadBoxes()
     {
@@ -84,10 +98,10 @@
         finally { _loading = false; }
     }
 
-    private async Task OnFilterChanged(int? value)
+    private void OnFilterChanged(int? value)
     {
-        _filterBoxId = value;
-        await _table.ReloadServerData();
+        var query = value is null ? "" : $"?boxId={value}";
+        Nav.NavigateTo($"/slides{query}");
     }
 
     private async Task OnSearchChanged(string value)
