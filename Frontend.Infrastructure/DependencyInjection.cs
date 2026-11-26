@@ -19,6 +19,7 @@ public static class DependencyInjection
         services.AddScoped<IBoxRepository, BoxRepository>();
         services.AddScoped<ISlideRepository, SlideRepository>();
         services.AddScoped<IImageRepository, ImageRepository>();
+        services.AddScoped<IHeldPhotoRepository, HeldPhotoRepository>();
         return services;
     }
 }

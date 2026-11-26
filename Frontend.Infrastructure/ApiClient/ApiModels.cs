@@ -7,6 +7,9 @@ internal record SlideResponse(int Id, string Code, string Name, int BoxId, strin
 internal record SlideDetailResponse(int Id, string Code, string Name, int BoxId, string? Description, string? Observations, List<ImageResponse> Images);
 internal record PagedSlidesResponse(List<SlideResponse> Items, int TotalCount, int Page, int PageSize);
 internal record ImageResponse(int Id, string FileUrl, string FileName, int Order, DateTime UploadedAt, int SlideId);
+internal record HeldPhotoResponse(int Id, string FileUrl, string FileName, DateTime UploadedAt, int? Stack, int? Position);
+internal record HeldPhotoLayoutItemRequest(int Id, int? Stack, int? Position);
+internal record SaveHeldPhotoLayoutRequest(IReadOnlyList<HeldPhotoLayoutItemRequest> Items);
 
 // Request bodies sent to the backend.
 internal record CreateGroupRequest(string Name);

@@ -5,7 +5,8 @@
 <MudText Typo="Typo.h4" Class="mb-4">Guía de Uso</MudText>
 <MudText Typo="Typo.body1" Class="mb-6">
     El sistema organiza la colección en tres niveles: <strong>Grupos</strong> contienen <strong>Cajas</strong>,
-    y las Cajas contienen <strong>Láminas</strong>. Cada lámina puede tener hasta 6 imágenes asociadas.
+    y las Cajas contienen <strong>Láminas</strong>. Cada lámina puede tener hasta 6 imágenes.
+    Para subir muchas fotos y crear varias láminas, use la sección <strong>Carga</strong>.
 </MudText>
 
 <MudExpansionPanels MultiExpansion="true" Elevation="1">
@@ -37,7 +38,40 @@
         </MudAlert>
     </MudExpansionPanel>
 
-    <MudExpansionPanel Text="2. Administrar Grupos y Cajas">
+    <MudExpansionPanel Text="2. Cargar varias fotos y crear láminas">
+        <MudText Typo="Typo.body1" Class="mb-2">
+            La sección <strong>Carga</strong> sube muchas fotos de una vez y las reparte en láminas.
+            Antes de elegir los archivos, indique cuántas fotos quiere en cada lámina. El máximo es 6.
+        </MudText>
+        <MudList T="string">
+            <MudListItem Icon="@Icons.Material.Filled.CloudUpload">
+                <strong>Seleccionar fotos:</strong> pueden ser muchas. Cada archivo puede pesar hasta 10 MB.
+                El orden en que las elige es el aumento: la primera de cada lámina es la más lejana.
+            </MudListItem>
+            <MudListItem Icon="@Icons.Material.Filled.DragIndicator">
+                Arrastre una foto para cambiar el aumento o pasarla a otra lámina.
+            </MudListItem>
+            <MudListItem Icon="@Icons.Material.Filled.Undo">
+                <strong>Quitar</strong> saca la foto de la lámina y la deja guardada.
+                <strong>Eliminar</strong> borra la foto.
+            </MudListItem>
+            <MudListItem Icon="@Icons.Material.Filled.Inventory2">
+                Escriba el código y el nombre, y elija una caja que ya exista. En esta pantalla no se crean
+                grupos ni cajas.
+            </MudListItem>
+            <MudListItem Icon="@Icons.Material.Filled.LibraryAdd">
+                <strong>Crear láminas</strong> crea las que ya tienen código, nombre y caja. Si una lámina
+                no tiene ningún dato, no la toca. Si le falta un campo, lo marca en rojo.
+            </MudListItem>
+        </MudList>
+        <MudAlert Severity="Severity.Info" Class="mt-3" Dense="true">
+            Las fotos que quedaron fuera de una lámina se juntan con «Juntar las fotos sueltas en láminas»,
+            o se envían a una lámina desde la lista de cada foto.
+            «Quitar todas» las saca de las láminas. «Eliminar todas» las borra.
+        </MudAlert>
+    </MudExpansionPanel>
+
+    <MudExpansionPanel Text="3. Administrar Grupos y Cajas">
         <MudText Typo="Typo.body1" Class="mb-2">
             Desde las secciones <strong>Grupos</strong> y <strong>Cajas</strong> puede renombrar o eliminar
             los registros existentes. La sección Cajas permite además filtrar por grupo.
@@ -48,7 +82,7 @@
         </MudAlert>
     </MudExpansionPanel>
 
-    <MudExpansionPanel Text="3. Administrar Láminas">
+    <MudExpansionPanel Text="4. Administrar Láminas">
         <MudText Typo="Typo.body1" Class="mb-2">
             La sección <strong>Láminas</strong> lista todas las láminas registradas y permite filtrar por caja.
             Desde ahí puede:
@@ -63,7 +97,7 @@
         </MudList>
     </MudExpansionPanel>
 
-    <MudExpansionPanel Text="4. Administrar las imágenes de una lámina">
+    <MudExpansionPanel Text="5. Administrar las imágenes de una lámina">
         <MudText Typo="Typo.body1" Class="mb-2">
             Desde el detalle de una lámina puede:
         </MudText>
@@ -80,7 +114,7 @@
         </MudList>
     </MudExpansionPanel>
 
-    <MudExpansionPanel Text="5. Documentación de la API">
+    <MudExpansionPanel Text="6. Documentación de la API">
         <MudText Typo="Typo.body1">
             Si necesita integrar otro sistema con esta administración, la pestaña
             <strong>Documentación API</strong> del menú abre la referencia interactiva (Swagger) de todos los

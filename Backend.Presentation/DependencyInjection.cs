@@ -20,6 +20,7 @@ public static class DependencyInjection
         builder.MapBoxEndpoints();
         builder.MapSlideEndpoints();
         builder.MapImageEndpoints();
+        builder.MapHeldPhotoEndpoints();
         return builder;
     }
 }

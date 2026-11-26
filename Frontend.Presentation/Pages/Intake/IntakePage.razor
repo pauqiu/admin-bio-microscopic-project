@@ -1,0 +1,644 @@
+@page "/carga"
+<style>
+    .mud-drop-item-preview-start { display: none !important; }
+</style>
+@using Microsoft.Extensions.Configuration
+@using UCR.EB.BioMicroscopeAdmin.Frontend.Application.Dtos.HeldPhotos
+@using UCR.EB.BioMicroscopeAdmin.Frontend.Presentation.Components
+@inject IHeldPhotoService HeldPhotoService
+@inject IBoxService BoxService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IConfiguration Configuration
+
+<MudText Typo="Typo.h5" Class="mb-2">Carga</MudText>
+<MudText Typo="Typo.body2">1. Elija las fotos. Pueden ser muchas. Cada una hasta 10 MB.</MudText>
+<MudText Typo="Typo.body2">2. El orden en que las elige es el aumento. La primera de cada lámina es la más lejana.</MudText>
+<MudText Typo="Typo.body2" Class="mb-3">3. Escriba el código y el nombre, elija la caja y cree la lámina.</MudText>
+
+<MudSelect T="int" Value="_perPile" ValueChanged="SetPerPile" Label="Fotos por lámina" Variant="Variant.Outlined"
+           Margin="Margin.Dense" Style="max-width:240px" Class="mb-3" Disabled="_busy">
+    @for (var n = 1; n <= PhotoStacks.MaxPerStack; n++)
+    {
+        var size = n;
+        <MudSelectItem T="int" Value="@size">@(size == 1 ? "1 foto" : $"{size} fotos")</MudSelectItem>
+    }
+</MudSelect>
+
+@if (_boxList.Count == 0)
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-3" Dense="true">
+        No hay cajas. Cree una en Cajas y vuelva aquí. En esta pantalla no se crean grupos ni cajas.
+    </MudAlert>
+}
+
+<MudFileUpload T="IReadOnlyList<IBrowserFile>" FilesChanged="UploadMany" Accept="image/*" MaximumFileCount="1000">
+    <ActivatorContent>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.CloudUpload" Disabled="_busy">
+            Seleccionar fotos
+        </MudButton>
+    </ActivatorContent>
+</MudFileUpload>
+
+@if (_progress is not null)
+{
+    <MudText Typo="Typo.body2" Class="mt-2">@_progress</MudText>
+}
+
+@foreach (var line in _batchLines)
+{
+    @if (line.Color == Color.Success)
+    {
+        <MudAlert Severity="Severity.Success" Class="mt-2" Dense="true">@line.Text</MudAlert>
+    }
+    else
+    {
+        <MudText Typo="Typo.body2" Class="mt-1" Color="@line.Color">@line.Text</MudText>
+    }
+}
+
+@if (_created.Count > 0)
+{
+    <MudStack Row="true" Wrap="Wrap.Wrap" Class="mt-2">
+        @foreach (var slide in _created)
+        {
+            <MudLink Href="@($"/slides/{slide.Id}")">Abrir @slide.Code</MudLink>
+        }
+    </MudStack>
+}
+
+<MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Class="my-3">
+    <MudButton Variant="Variant.Outlined" OnClick="PackAndSave" Disabled="@(_busy || !Unassigned.Any())">
+        Juntar las fotos sueltas en láminas de @_perPile
+    </MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="PromoteReady"
+               Disabled="@(_busy || !PileNumbers.Any())">
+        Crear láminas
+    </MudButton>
+    <MudButton Variant="Variant.Outlined" OnClick="RemoveAll" Disabled="@(_busy || !Piled.Any())">
+        Quitar todas
+    </MudButton>
+    <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="DiscardAll" Disabled="@(_busy || _photos.Count == 0)">
+        Eliminar todas
+    </MudButton>
+</MudStack>
+
+@if (Unassigned.Any())
+{
+    <MudText Typo="Typo.subtitle1" Class="mb-1">Fotos sin lámina</MudText>
+    @foreach (var photo in Unassigned)
+    {
+        <MudPaper Class="pa-2 my-1" Elevation="1">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <img src="@Url(photo)" alt="@photo.FileName" style="@ThumbStyle" />
+                <MudText Typo="Typo.body2" Style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">@photo.FileName</MudText>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" Disabled="_busy" OnClick="@(() => Discard(photo.Id))">Eliminar</MudButton>
+                <MudSelect T="int?" Value="@((int?)null)" ValueChanged="@(value => SendTo(photo.Id, value))"
+                           Placeholder="Mover a una lámina" Variant="Variant.Outlined" Margin="Margin.Dense"
+                           Style="max-width:240px" Disabled="_busy">
+                    <MudSelectItem T="int?" Value="@((int?)0)">Lámina nueva</MudSelectItem>
+                    @foreach (var stack in PileNumbers)
+                    {
+                        var current = stack;
+                        <MudSelectItem T="int?" Value="@((int?)current)" Disabled="@(Count(current) >= _perPile)">Lámina @current</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudStack>
+        </MudPaper>
+    }
+}
+
+<MudDropContainer T="HeldPhotoDto" @ref="_drop" @key="_dropKey" Items="Piled"
+                  ItemsSelector="@((item, zone) => zone == Zone(item))"
+                  ItemDropped="OnPhotoDropped">
+    <ChildContent>
+        @foreach (var stack in PileNumbers)
+        {
+            var current = stack;
+            var members = Members(current);
+            <MudPaper Class="pa-3 my-3" Elevation="2">
+                <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Baseline">
+                    <MudText Typo="Typo.subtitle1">Lámina @current</MudText>
+                    <MudText Typo="Typo.subtitle1" Color="Color.Primary">· @(members.Count == 1 ? "1 foto" : $"{members.Count} fotos")</MudText>
+                </MudStack>
+                <MudText Typo="Typo.caption" Class="mb-1">Arrastre las fotos para cambiar el orden o moverlas a otra lámina.</MudText>
+                <MudDropZone T="HeldPhotoDto" Identifier="@Zone(current)" AllowReorder="true"
+                             CanDrop="@(item => item.Stack == current || Count(current) < _perPile)"
+                             Class="d-flex flex-column gap-1" />
+                @if (members.Count > 0)
+                {
+                    <MudTextField T="string" Value="@CodeOf(current)" ValueChanged="@(value => _codes[current] = value ?? "")" Immediate="true" Label="Código de la lámina" MaxLength="20" Variant="Variant.Outlined" Class="mt-2"
+                                  Error="@Gap(current, !HasCode(current))" />
+                    <MudTextField T="string" Value="@NameOf(current)" ValueChanged="@(value => _names[current] = value ?? "")" Immediate="true" Label="Nombre de la lámina" MaxLength="150" Variant="Variant.Outlined" Class="mt-2"
+                                  Error="@Gap(current, !HasName(current))" />
+                    <MudSelect T="int?" Value="@BoxOf(current)" ValueChanged="@(value => RememberBox(current, value))" Label="Caja" Variant="Variant.Outlined" Class="mt-2" Disabled="@(_boxList.Count == 0)"
+                               Error="@Gap(current, !HasBox(current))">
+                        @foreach (var box in _boxList)
+                        {
+                            <MudSelectItem T="int?" Value="@box.Id">@box.Number — @box.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                    @if (Gap(current, true))
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Error" Class="mt-1">@GapMessage(current)</MudText>
+                    }
+                    <MudButton Class="mt-2" Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_busy || !Ready(current))"
+                               OnClick="@(() => Promote(current))">Crear lámina</MudButton>
+                }
+            </MudPaper>
+        }
+    </ChildContent>
+    <ItemRenderer>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="my-1" Style="width:100%;cursor:grab;">
+            <img src="@Url(context)" alt="@context.FileName" draggable="false" style="@ThumbStyle" />
+            <MudText Typo="Typo.body2" Style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">@context.FileName</MudText>
+            <MudChip T="string" Size="Size.Small" Color="Color.Primary">Aumento @context.Position</MudChip>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Disabled="_busy" OnClick="@(() => Remove(context.Id))">Quitar</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" Disabled="_busy" OnClick="@(() => Discard(context.Id))">Eliminar</MudButton>
+        </MudStack>
+    </ItemRenderer>
+</MudDropContainer>
+
+@code {
+    private const string ThumbStyle = "width:72px;height:54px;object-fit:cover;border-radius:4px;border:1px solid #e0e0e0;display:block;";
+
+    private readonly List<HeldPhotoDto> _photos = [];
+    private readonly List<(string Text, Color Color)> _batchLines = [];
+    private readonly List<(int Id, string Code)> _created = [];
+    private readonly Dictionary<int, string> _codes = [];
+    private readonly Dictionary<int, string> _names = [];
+    private readonly Dictionary<int, int> _boxes = [];
+    private readonly HashSet<int> _gaps = [];
+    private List<BoxDto> _boxList = [];
+    private string? _progress;
+    private bool _busy;
+    private MudDropContainer<HeldPhotoDto>? _drop;
+    private int _dropKey;
+    private int _perPile = PhotoStacks.MaxPerStack;
+
+    private List<HeldPhotoDto> Piled =>
+        _photos.Where(photo => photo.Stack is not null).OrderBy(photo => photo.Stack).ThenBy(photo => photo.Position).ToList();
+
+    private static string Zone(int stack) => $"lamina-{stack}";
+    private static string Zone(HeldPhotoDto photo) => Zone(photo.Stack ?? 0);
+
+    private void SetPerPile(int value)
+    {
+        if (value < 1) value = 1;
+        if (value > PhotoStacks.MaxPerStack) value = PhotoStacks.MaxPerStack;
+        _perPile = value;
+    }
+
+    private string CodeOf(int stack) => _codes.TryGetValue(stack, out var value) ? value : "";
+    private string NameOf(int stack) => _names.TryGetValue(stack, out var value) ? value : "";
+
+    private int? BoxOf(int stack)
+    {
+        if (_boxes.TryGetValue(stack, out var value) && _boxList.Any(box => box.Id == value))
+            return value;
+        return _boxList.Count == 1 ? _boxList[0].Id : null;
+    }
+
+    private void RememberBox(int stack, int? value)
+    {
+        if (value is int id)
+            _boxes[stack] = id;
+        else
+            _boxes.Remove(stack);
+    }
+
+    private void ForgetPile(int stack)
+    {
+        _codes.Remove(stack);
+        _names.Remove(stack);
+        _boxes.Remove(stack);
+        _gaps.Remove(stack);
+    }
+
+    private bool HasCode(int stack) => !string.IsNullOrWhiteSpace(CodeOf(stack));
+    private bool HasName(int stack) => !string.IsNullOrWhiteSpace(NameOf(stack));
+    private bool HasBox(int stack) => BoxOf(stack) is > 0;
+
+    private bool Ready(int stack) => HasCode(stack) && HasName(stack) && HasBox(stack);
+
+    private bool Started(int stack) =>
+        HasCode(stack) || HasName(stack) || (_boxList.Count != 1 && _boxes.ContainsKey(stack));
+
+    private bool Gap(int stack, bool missing) => missing && _gaps.Contains(stack) && Started(stack) && !Ready(stack);
+
+    private string GapMessage(int stack)
+    {
+        var missing = new List<string>();
+        if (!HasCode(stack)) missing.Add("el código");
+        if (!HasName(stack)) missing.Add("el nombre");
+        if (!HasBox(stack)) missing.Add("la caja");
+        if (missing.Count == 1)
+            return missing[0] == "la caja" ? "Elija la caja." : $"Escriba {missing[0]}.";
+        if (missing.Count == 2 && missing[1] == "la caja")
+            return $"Escriba {missing[0]} y elija la caja.";
+        return $"Escriba {string.Join(" y ", missing)}.";
+    }
+
+    private IEnumerable<HeldPhotoDto> Unassigned => _photos.Where(photo => photo.Stack is null);
+    private IEnumerable<int> PileNumbers => _photos.Where(photo => photo.Stack is not null).Select(photo => photo.Stack!.Value).Distinct().Order();
+
+    private List<HeldPhotoDto> Members(int stack) =>
+        _photos.Where(photo => photo.Stack == stack).OrderBy(photo => photo.Position).ToList();
+
+    private int Count(int stack) => Members(stack).Count;
+
+    private string Url(HeldPhotoDto photo) => ImageUrls.Resolve(photo.FileUrl, Configuration["ApiBaseUrl"]);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _boxList = await BoxService.ListAllAsync();
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        _photos.Clear();
+        _photos.AddRange(await HeldPhotoService.ListAsync());
+    }
+
+    private async Task UploadMany(IReadOnlyList<IBrowserFile>? files)
+    {
+        _batchLines.Clear();
+        var selected = files ?? [];
+        var screened = UploadPlan.Screen(selected.Select((file, index) => new UploadCandidate(index, file.Name, file.Size)).ToList());
+        foreach (var rejected in screened.Rejected)
+            _batchLines.Add(($"{rejected.FileName} · {rejected.Reason}", Color.Error));
+
+        var saved = new List<(int Id, int SelectionIndex)>();
+        _busy = true;
+        try
+        {
+            var total = screened.Accepted.Count;
+            for (var n = 0; n < total; n++)
+            {
+                var accepted = screened.Accepted[n];
+                var file = selected[accepted.Index];
+                _progress = $"Subiendo {n + 1} de {total}: {file.Name}";
+                try
+                {
+                    await using var stream = file.OpenReadStream(maxAllowedSize: UploadPlan.MaxFileBytes);
+                    using var ms = new MemoryStream();
+                    await stream.CopyToAsync(ms);
+                    ms.Position = 0;
+                    var created = await HeldPhotoService.UploadAsync(ms, file.Name);
+                    saved.Add((created.Id, accepted.Index));
+                }
+                catch (Exception ex)
+                {
+                    _batchLines.Add(($"{file.Name} · No se pudo guardar. {Explain(ex)}", Color.Error));
+                }
+            }
+
+            await Reload();
+            var leftOut = screened.Rejected.Count + screened.Accepted.Count - saved.Count;
+            if (saved.Count > 0 && Place(saved) && await SaveLayout())
+                _batchLines.Insert(0, (SavedLine(saved.Count, leftOut), Color.Success));
+        }
+        finally
+        {
+            _progress = null;
+            _busy = false;
+        }
+    }
+
+    private async Task PackAndSave()
+    {
+        if (!PackUnassigned()) return;
+        _busy = true;
+        try
+        {
+            await SaveLayout();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private bool PackUnassigned() =>
+        Place(Unassigned.Select((photo, index) => (photo.Id, index)).ToList());
+
+    private bool Place(IReadOnlyList<(int Id, int SelectionIndex)> items)
+    {
+        var loose = new List<UploadedSelection>();
+        foreach (var item in items)
+        {
+            var photo = _photos.FirstOrDefault(candidate => candidate.Id == item.Id && candidate.Stack is null);
+            if (photo is not null)
+                loose.Add(new UploadedSelection(photo.Id, item.SelectionIndex));
+        }
+
+        if (loose.Count == 0) return false;
+        var first = PileNumbers.DefaultIfEmpty(0).Max() + 1;
+        foreach (var placement in PhotoStacks.Pack(loose, first, _perPile))
+        {
+            var photo = _photos.First(candidate => candidate.Id == placement.Id);
+            Replace(photo with { Stack = placement.Stack, Position = placement.Position });
+        }
+
+        return true;
+    }
+
+    private static string SavedLine(int saved, int leftOut)
+    {
+        var head = saved == 1 ? "1 foto subida correctamente" : $"{saved} fotos subidas correctamente";
+        if (leftOut == 0)
+            return $"{head}.";
+
+        var omitted = leftOut == 1 ? "1 quedó fuera" : $"{leftOut} quedaron fuera";
+        return $"{head}. {omitted}. Las láminas conservan los lugares originales.";
+    }
+
+    private Task SendTo(int id, int? target)
+    {
+        if (target is null) return Task.CompletedTask;
+        if (target == 0) return AddPileFrom(id);
+        return MoveToPile(id, target.Value);
+    }
+
+    private async Task RemoveAll()
+    {
+        if (!await Confirm("Quitar las fotos", "Las fotos salen de sus láminas y se quedan guardadas.", "Quitar", Color.Primary))
+            return;
+        foreach (var photo in _photos.Where(item => item.Stack is not null).ToList())
+            Replace(photo with { Stack = null, Position = null });
+        _codes.Clear();
+        _names.Clear();
+        _boxes.Clear();
+        _gaps.Clear();
+        await Persist();
+        _dropKey++;
+    }
+
+    private async Task DiscardAll()
+    {
+        if (_photos.Count == 0) return;
+        if (!await Confirm("Eliminar las fotos", "Se borran todas las fotos de esta pantalla. No se puede deshacer.", "Eliminar", Color.Error))
+            return;
+        var ids = _photos.Select(photo => photo.Id).ToList();
+        _busy = true;
+        try
+        {
+            for (var n = 0; n < ids.Count; n++)
+            {
+                _progress = $"Eliminando {n + 1} de {ids.Count}";
+                await HeldPhotoService.DeleteAsync(ids[n]);
+                _photos.RemoveAll(photo => photo.Id == ids[n]);
+            }
+            _codes.Clear();
+            _names.Clear();
+            _boxes.Clear();
+            _gaps.Clear();
+            _dropKey++;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(Explain(ex), Severity.Error);
+            await Reload();
+        }
+        finally
+        {
+            _progress = null;
+            _busy = false;
+        }
+    }
+
+    private async Task<bool> Confirm(string title, string message, string confirmText, Color confirmColor)
+    {
+        var parameters = new DialogParameters<ConfirmDeleteDialog>
+        {
+            { x => x.Title, title },
+            { x => x.Message, message },
+            { x => x.ConfirmText, confirmText },
+            { x => x.ConfirmColor, confirmColor }
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDeleteDialog>(title, parameters);
+        var result = await dialog.Result;
+        return result is not null && !result.Canceled;
+    }
+
+    private async Task AddPileFrom(int id)
+    {
+        var photo = _photos.Single(item => item.Id == id);
+        var next = PileNumbers.DefaultIfEmpty(0).Max() + 1;
+        Replace(photo with { Stack = next, Position = 1 });
+        await Persist();
+    }
+
+    private async Task MoveToPile(int id, int stack)
+    {
+        if (Count(stack) >= _perPile) return;
+        var photo = _photos.Single(item => item.Id == id);
+        Replace(photo with { Stack = stack, Position = Count(stack) + 1 });
+        Renumber(stack);
+        await Persist();
+    }
+
+    private async Task OnPhotoDropped(MudItemDropInfo<HeldPhotoDto> drop)
+    {
+        if (drop.Item is not { Stack: int source } item || !TryZone(drop.DropzoneIdentifier, out var target))
+        {
+            _drop?.Refresh();
+            return;
+        }
+
+        if (source != target && Count(target) >= _perPile)
+        {
+            Snackbar.Add($"La lámina {target} ya tiene {_perPile} fotos.", Severity.Warning);
+            _drop?.Refresh();
+            return;
+        }
+
+        var members = Members(target).Where(photo => photo.Id != item.Id).ToList();
+        members.Insert(Math.Clamp(drop.IndexInZone, 0, members.Count), item);
+        var changed = source != target;
+        for (var i = 0; i < members.Count; i++)
+        {
+            if (members[i].Stack == target && members[i].Position == i + 1) continue;
+            Replace(members[i] with { Stack = target, Position = i + 1 });
+            changed = true;
+        }
+
+        if (source != target)
+        {
+            Renumber(source);
+            if (Count(source) == 0)
+                ForgetPile(source);
+        }
+
+        if (!changed)
+        {
+            _drop?.Refresh();
+            return;
+        }
+
+        if (await SaveLayout())
+            _dropKey++;
+    }
+
+    private static bool TryZone(string? zone, out int stack)
+    {
+        const string prefix = "lamina-";
+        stack = 0;
+        return zone is not null
+            && zone.StartsWith(prefix, StringComparison.Ordinal)
+            && int.TryParse(zone[prefix.Length..], out stack);
+    }
+
+    private async Task Remove(int id)
+    {
+        var photo = _photos.Single(item => item.Id == id);
+        var stack = photo.Stack;
+        Replace(photo with { Stack = null, Position = null });
+        if (stack is int pile)
+        {
+            Renumber(pile);
+            if (Count(pile) == 0)
+                ForgetPile(pile);
+        }
+        await Persist();
+    }
+
+    private async Task Discard(int id)
+    {
+        var photo = _photos.Single(item => item.Id == id);
+        var stack = photo.Stack;
+        _busy = true;
+        try
+        {
+            await HeldPhotoService.DeleteAsync(id);
+            _photos.RemoveAll(item => item.Id == id);
+            if (stack is int pile)
+            {
+                Renumber(pile);
+                if (Count(pile) == 0)
+                    ForgetPile(pile);
+                await SaveLayout();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(Explain(ex), Severity.Error);
+            await Reload();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Renumber(int stack)
+    {
+        var members = _photos.Where(photo => photo.Stack == stack).OrderBy(photo => photo.Position).ToList();
+        for (var i = 0; i < members.Count; i++)
+            Replace(members[i] with { Position = i + 1 });
+    }
+
+    private void Replace(HeldPhotoDto updated)
+    {
+        var index = _photos.FindIndex(photo => photo.Id == updated.Id);
+        _photos[index] = updated;
+    }
+
+    private async Task Persist()
+    {
+        _busy = true;
+        try
+        {
+            await SaveLayout();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task<bool> SaveLayout()
+    {
+        var errors = PhotoStacks.Validate(_photos.Select(photo => new StackPlacement(photo.Id, photo.Stack, photo.Position)).ToList());
+        if (errors.Count > 0)
+        {
+            Snackbar.Add(errors[0], Severity.Warning);
+            await Reload();
+            return false;
+        }
+
+        try
+        {
+            await HeldPhotoService.SaveLayoutAsync(_photos.Select(photo => new HeldPhotoLayoutItemDto(photo.Id, photo.Stack, photo.Position)).ToList());
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(Explain(ex), Severity.Error);
+            await Reload();
+            return false;
+        }
+    }
+
+    private async Task Promote(int stack)
+    {
+        if (!Ready(stack)) return;
+        _busy = true;
+        try
+        {
+            await CreateOne(stack);
+            await Reload();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task PromoteReady()
+    {
+        _gaps.Clear();
+        foreach (var stack in PileNumbers)
+            if (Started(stack) && !Ready(stack))
+                _gaps.Add(stack);
+
+        var stacks = PileNumbers.Where(Ready).ToList();
+        if (stacks.Count == 0) return;
+        _busy = true;
+        try
+        {
+            foreach (var stack in stacks)
+                await CreateOne(stack);
+            await Reload();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task CreateOne(int stack)
+    {
+        var code = CodeOf(stack).Trim();
+        var name = NameOf(stack).Trim();
+        if (BoxOf(stack) is not int boxId) return;
+        try
+        {
+            var slide = await HeldPhotoService.PromoteAsync(stack, new CreateSlideDto(code, name, boxId, null, null));
+            ForgetPile(stack);
+            _created.Add((slide.Id, slide.Code));
+            Snackbar.Add($"Lámina {slide.Code} creada.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"{code}: {Explain(ex)}", Severity.Error);
+        }
+    }
+
+    private static string Explain(Exception ex) =>
+        ex is HttpRequestException { StatusCode: not null, Message: { Length: > 0 } message }
+            ? message
+            : "No se pudo completar. Inténtelo de nuevo.";
+}

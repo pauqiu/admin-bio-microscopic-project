@@ -1,75 +1,110 @@
+@using UCR.EB.BioMicroscopeAdmin.Frontend.Presentation.Components
 @inject IImageService ImageService
-@inject ISnackbar Snackbar
 
-<MudDialog>
-    <TitleContent>Subir Imagen</TitleContent>
+<MudDialog OnBackdropClick="OnBackdropClick">
+    <TitleContent>
+        <MudText Typo="Typo.h6" Class="my-0">Subir imágenes</MudText>
+    </TitleContent>
     <DialogContent>
-        <MudStack>
-            <MudFileUpload T="IBrowserFile" FilesChanged="OnFileChanged" Accept="image/*">
-                <ActivatorContent>
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                               StartIcon="@Icons.Material.Filled.CloudUpload" Disabled="_uploading">
-                        Seleccionar archivo
-                    </MudButton>
-                </ActivatorContent>
-            </MudFileUpload>
-            @if (_file is not null)
+        <MudText Typo="Typo.body2" Class="mb-3">
+            La primera que elija ocupa el aumento libre más bajo.
+        </MudText>
+        @if (_attempts.Count == 0)
+        {
+            @foreach (var item in _preview.Accepted)
             {
-                <MudText Typo="Typo.body2">@_file.Name</MudText>
+                <MudText Typo="Typo.body2" Class="mt-2">@item.FileName · Aumento @item.Order</MudText>
             }
-        </MudStack>
+            @foreach (var item in _preview.Rejected)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Error" Class="mt-2">@item.FileName · @item.Reason</MudText>
+            }
+        }
+        @foreach (var attempt in _attempts)
+        {
+            <MudText Typo="Typo.body2" Class="mt-2"
+                     Color="@(attempt.Succeeded ? Color.Success : Color.Error)">
+                @attempt.FileName · Aumento @attempt.Order · @(attempt.Succeeded ? "Subida" : attempt.Error)
+            </MudText>
+        }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel" Disabled="_uploading">Cancelar</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Disabled="@(_file is null || _uploading)">
+        <MudFileUpload T="IReadOnlyList<IBrowserFile>" FilesChanged="OnFilesChanged" Accept="image/*" MaximumFileCount="100"
+                       Class="me-auto my-0" Style="width:auto">
+            <ActivatorContent>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.CloudUpload"
+                           Disabled="@(_uploading || _attempts.Count > 0)">
+                    Seleccionar fotos
+                </MudButton>
+            </ActivatorContent>
+        </MudFileUpload>
+        <MudButton OnClick="Close" Disabled="_uploading">Cerrar</MudButton>
+        @if (_attempts.Any(attempt => !attempt.Succeeded))
+        {
+            <MudButton OnClick="RetryFailed" Disabled="_uploading" Color="Color.Warning">Reintentar fallidas</MudButton>
+        }
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit"
+                   Disabled="@(_preview.Accepted.Count == 0 || _uploading || _attempts.Count > 0)">
             Subir
         </MudButton>
     </DialogActions>
 </MudDialog>
 
 @code {
-    public const int MaxImages = 6;
-    private const long MaxFileBytes = 10 * 1024 * 1024;
+    public const int MaxImages = UploadPlan.MaxImages;
 
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
 
-    /// <summary>Lámina que recibe las imágenes.</summary>
     [Parameter, EditorRequired] public int SlideId { get; set; }
 
-    /// <summary>Órdenes que ya ocupan las imágenes actuales de la lámina.</summary>
     [Parameter] public IReadOnlyCollection<int> UsedOrders { get; set; } = [];
 
-    private IBrowserFile? _file;
+    private IReadOnlyList<IBrowserFile> _files = [];
+    private UploadPlanResult _preview = new([], []);
+    private readonly List<UploadAttempt> _attempts = [];
     private bool _uploading;
+    private bool _anySucceeded;
 
-    private void OnFileChanged(IBrowserFile? file) => _file = file;
-
-    // El diálogo sube y avisa el resultado. La página solo recarga si se subió algo.
-    private async Task Submit()
+    private void OnFilesChanged(IReadOnlyList<IBrowserFile>? files)
     {
-        if (_file is null) return;
+        if (_attempts.Count > 0) return;
+        _files = files ?? [];
+        var candidates = _files.Select((file, index) => new UploadCandidate(index, file.Name, file.Size)).ToList();
+        _preview = UploadPlan.Plan(UsedOrders, candidates);
+    }
 
-        var nextOrder = Enumerable.Range(1, MaxImages).FirstOrDefault(o => !UsedOrders.Contains(o));
-        if (nextOrder == 0)
-        {
-            Snackbar.Add($"La lámina ya tiene {MaxImages} imágenes.", Severity.Warning);
-            return;
-        }
+    private Task Submit() => Send(_preview.Accepted);
 
+    private Task RetryFailed()
+    {
+        var failed = _attempts.Where(attempt => !attempt.Succeeded).Select(attempt => attempt.Index).ToHashSet();
+        var again = _preview.Accepted.Where(item => failed.Contains(item.Index)).ToList();
+        return Send(again);
+    }
+
+    private async Task Send(IReadOnlyList<PlannedUpload> planned)
+    {
         _uploading = true;
         try
         {
-            await using var stream = _file.OpenReadStream(maxAllowedSize: MaxFileBytes);
-            using var ms = new MemoryStream();
-            await stream.CopyToAsync(ms);
-            ms.Position = 0;
-            await ImageService.UploadAsync(SlideId, ms, _file.Name, nextOrder);
-            Snackbar.Add("Imagen subida correctamente.", Severity.Success);
-            MudDialog.Close(DialogResult.Ok(true));
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Error al subir imagen: {ex.Message}", Severity.Error);
+            var batch = await UploadBatch.RunAsync(planned, async item =>
+            {
+                var file = _files[item.Index];
+                await using var stream = file.OpenReadStream(maxAllowedSize: UploadPlan.MaxFileBytes);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                ms.Position = 0;
+                await ImageService.UploadAsync(SlideId, ms, file.Name, item.Order);
+            });
+
+            foreach (var attempt in batch)
+            {
+                var existing = _attempts.FindIndex(saved => saved.Index == attempt.Index);
+                if (existing >= 0) _attempts[existing] = attempt;
+                else _attempts.Add(attempt);
+                if (attempt.Succeeded) _anySucceeded = true;
+            }
         }
         finally
         {
@@ -77,5 +112,15 @@
         }
     }
 
-    private void Cancel() => MudDialog.Cancel();
+    private void OnBackdropClick()
+    {
+        if (_uploading) return;
+        Close();
+    }
+
+    private void Close()
+    {
+        if (_anySucceeded) MudDialog.Close(DialogResult.Ok(true));
+        else MudDialog.Cancel();
+    }
 }

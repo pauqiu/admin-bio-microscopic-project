@@ -23,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<IBoxRepository, EfBoxRepository>();
         services.AddScoped<ISlideRepository, EfSlideRepository>();
         services.AddScoped<IImageRepository, EfImageRepository>();
+        services.AddScoped<IHeldPhotoRepository, EfHeldPhotoRepository>();
 
         services.AddSingleton<IFileStorageService, LocalFileStorageService>();
         return services;
