@@ -22,7 +22,7 @@ public static class HeldPhotoLayout
             var hasStack = photo.Stack is not null;
             var hasPosition = photo.Position is not null;
             if (hasStack != hasPosition)
-                errors.Add($"La foto {photo.Id} necesita pila y posición juntas.");
+                errors.Add($"La foto {photo.Id} necesita lámina y posición juntas.");
             if (photo.Position is int position && (position < 1 || position > MaxPerStack))
                 errors.Add($"La foto {photo.Id} tiene una posición fuera de 1 a {MaxPerStack}.");
         }
@@ -31,12 +31,12 @@ public static class HeldPhotoLayout
         {
             var positions = group.Select(photo => photo.Position!.Value).ToList();
             if (positions.Count > MaxPerStack)
-                errors.Add($"La pila {group.Key} tiene {positions.Count} fotos. El máximo es {MaxPerStack}.");
+                errors.Add($"La lámina {group.Key} tiene {positions.Count} fotos. El máximo es {MaxPerStack}.");
             if (positions.Distinct().Count() != positions.Count)
-                errors.Add($"La pila {group.Key} repite una posición.");
+                errors.Add($"La lámina {group.Key} repite una posición.");
             var expected = Enumerable.Range(1, positions.Count).ToHashSet();
             if (!expected.SetEquals(positions))
-                errors.Add($"La pila {group.Key} debe usar las posiciones 1 a {positions.Count} sin huecos.");
+                errors.Add($"La lámina {group.Key} debe usar las posiciones 1 a {positions.Count} sin huecos.");
         }
 
         return errors;

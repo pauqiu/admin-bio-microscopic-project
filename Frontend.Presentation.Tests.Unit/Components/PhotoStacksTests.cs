@@ -49,6 +49,23 @@ public class PhotoStacksTests
     }
 
     [Fact]
+    public void Pack_UsesTheChosenPileSizeAndNeverPassesSix()
+    {
+        var uploaded = Enumerable.Range(0, 7)
+            .Select(index => new UploadedSelection(index + 1, index))
+            .ToList();
+
+        var packed = PhotoStacks.Pack(uploaded, 1, 3);
+        var tooBig = PhotoStacks.Pack(uploaded, 1, 9);
+
+        Assert.Equal(3, packed.Count(photo => photo.Stack == 1));
+        Assert.Equal(3, packed.Count(photo => photo.Stack == 2));
+        Assert.Equal(1, packed.Count(photo => photo.Stack == 3));
+        Assert.Equal(6, tooBig.Count(photo => photo.Stack == 1));
+        Assert.Equal(1, tooBig.Count(photo => photo.Stack == 2));
+    }
+
+    [Fact]
     public void Pack_KeepsTheNextPileWhenASelectionIndexIsMissing()
     {
         var uploaded = Enumerable.Range(0, 7)

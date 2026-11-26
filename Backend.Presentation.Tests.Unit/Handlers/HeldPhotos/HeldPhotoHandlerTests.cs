@@ -108,7 +108,7 @@ public class HeldPhotoHandlerTests
             photos.Object, slides.Object, images.Object, boxes.Object);
 
         var bad = Assert.IsType<BadRequest<ErrorResponse>>(result.Result);
-        Assert.Equal("No se pudo crear la lámina. Las fotos siguen en la pila.", Assert.Single(bad.Value!.Errors).Message);
+        Assert.Equal("No se pudo crear la lámina. Las fotos siguen en la lámina.", Assert.Single(bad.Value!.Errors).Message);
         slides.Verify(item => item.DeleteAsync(8), Times.Once);
         photos.Verify(item => item.DeleteAsync(It.IsAny<int>()), Times.Never);
     }

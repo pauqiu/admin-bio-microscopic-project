@@ -26,7 +26,7 @@ public static class PromoteHeldStackHandler
 
         var pile = (await photos.ListAsync()).Where(photo => photo.Stack == stack).OrderBy(photo => photo.Position).ToList();
         if (pile.Count == 0)
-            return TypedResults.BadRequest(new ErrorResponse([new ValidationError("Stack", "La pila no tiene fotos.")]));
+            return TypedResults.BadRequest(new ErrorResponse([new ValidationError("Stack", "La lámina no tiene fotos.")]));
 
         var errors = HeldPhotoLayout.Validate(pile.Select(photo => new HeldPhotoPlacement(photo.Id, photo.Stack, photo.Position)).ToList());
         if (errors.Count > 0)
@@ -54,7 +54,7 @@ public static class PromoteHeldStackHandler
         {
             await slides.DeleteAsync(created.Id);
             return TypedResults.BadRequest(new ErrorResponse([
-                new ValidationError("Stack", "No se pudo crear la lámina. Las fotos siguen en la pila.")
+                new ValidationError("Stack", "No se pudo crear la lámina. Las fotos siguen en la lámina.")
             ]));
         }
 

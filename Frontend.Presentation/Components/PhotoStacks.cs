@@ -15,16 +15,20 @@ public static class PhotoStacks
 
     /// <summary>
     /// Arma pilas sin correr las fotos hacia adelante cuando falta un índice de la selección.
-    /// La pila es <paramref name="firstPile"/> + índice / 6. Dentro de cada pila las posiciones son 1..n, sin huecos.
+    /// La pila es <paramref name="firstPile"/> + índice / fotos por pila. Dentro de cada pila las posiciones son 1..n, sin huecos.
+    /// <paramref name="perPile"/> no puede pasar de <see cref="MaxPerStack"/>.
     /// </summary>
-    public static IReadOnlyList<StackPlacement> Pack(IReadOnlyList<UploadedSelection> uploaded, int firstPile) =>
-        uploaded
-            .GroupBy(photo => firstPile + photo.SelectionIndex / MaxPerStack)
+    public static IReadOnlyList<StackPlacement> Pack(IReadOnlyList<UploadedSelection> uploaded, int firstPile, int perPile = MaxPerStack)
+    {
+        var size = perPile < 1 ? 1 : perPile > MaxPerStack ? MaxPerStack : perPile;
+        return uploaded
+            .GroupBy(photo => firstPile + photo.SelectionIndex / size)
             .OrderBy(group => group.Key)
             .SelectMany(group => group
                 .OrderBy(photo => photo.SelectionIndex)
                 .Select((photo, index) => new StackPlacement(photo.Id, group.Key, index + 1)))
             .ToList();
+    }
 
     public static IReadOnlyList<string> Validate(IReadOnlyList<StackPlacement> photos)
     {
@@ -38,7 +42,7 @@ public static class PhotoStacks
             var hasStack = photo.Stack is not null;
             var hasPosition = photo.Position is not null;
             if (hasStack != hasPosition)
-                errors.Add($"La foto {photo.Id} necesita pila y posición juntas.");
+                errors.Add($"La foto {photo.Id} necesita lámina y posición juntas.");
             if (photo.Position is int position && (position < 1 || position > MaxPerStack))
                 errors.Add($"La foto {photo.Id} tiene una posición fuera de 1 a {MaxPerStack}.");
         }
@@ -47,12 +51,12 @@ public static class PhotoStacks
         {
             var positions = group.Select(photo => photo.Position!.Value).ToList();
             if (positions.Count > MaxPerStack)
-                errors.Add($"La pila {group.Key} tiene {positions.Count} fotos. El máximo es {MaxPerStack}.");
+                errors.Add($"La lámina {group.Key} tiene {positions.Count} fotos. El máximo es {MaxPerStack}.");
             if (positions.Distinct().Count() != positions.Count)
-                errors.Add($"La pila {group.Key} repite una posición.");
+                errors.Add($"La lámina {group.Key} repite una posición.");
             var expected = Enumerable.Range(1, positions.Count).ToHashSet();
             if (!expected.SetEquals(positions))
-                errors.Add($"La pila {group.Key} debe usar las posiciones 1 a {positions.Count} sin huecos.");
+                errors.Add($"La lámina {group.Key} debe usar las posiciones 1 a {positions.Count} sin huecos.");
         }
 
         return errors;
