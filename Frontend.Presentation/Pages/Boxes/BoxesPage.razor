@@ -3,6 +3,7 @@
 @inject IGroupService GroupService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject NavigationManager Nav
 
 <PageTitle>Cajas</PageTitle>
 
@@ -10,6 +11,9 @@
     <ToolBarContent>
         <MudText Typo="Typo.h5">Cajas</MudText>
         <MudSpacer />
+        <MudTextField T="string" @bind-Value="_searchText" Immediate="true" Label="Buscar por número o nombre"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true"
+                      Style="max-width:280px" Class="mr-4" Variant="Variant.Outlined" />
         <MudSelect T="int?" Value="_filterGroupId" ValueChanged="OnFilterChanged" Label="Filtrar por grupo"
                    Clearable="true" Style="max-width:220px" Class="mr-4" Variant="Variant.Outlined">
             @foreach (var g in _groups)
@@ -34,6 +38,10 @@
         <MudTd DataLabel="Nombre">@context.Name</MudTd>
         <MudTd DataLabel="Grupo">@GroupName(context.GroupId)</MudTd>
         <MudTd Style="text-align:right">
+            <MudTooltip Text="Ver láminas de esta caja">
+                <MudIconButton Icon="@Icons.Material.Filled.FolderOpen" Color="Color.Info" Size="Size.Small"
+                               OnClick="@(() => ViewSlides(context))" />
+            </MudTooltip>
             <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
                            OnClick="@(() => OpenEdit(context))" />
             <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
@@ -49,16 +57,25 @@
     private List<BoxDto> _boxes = [];
     private List<GroupDto> _groups = [];
     private int? _filterGroupId;
+    private string _searchText = "";
     private bool _loading = true;
 
+    [SupplyParameterFromQuery(Name = "groupId")]
+    public int? GroupId { get; set; }
+
     private IEnumerable<BoxDto> FilteredBoxes =>
-        _filterGroupId is null ? _boxes : _boxes.Where(b => b.GroupId == _filterGroupId);
+        _boxes.Where(b => _filterGroupId is null || b.GroupId == _filterGroupId)
+            .Where(b => string.IsNullOrWhiteSpace(_searchText)
+                || b.Number.ToString().Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+                || b.Name.Contains(_searchText, StringComparison.OrdinalIgnoreCase));
 
     protected override async Task OnInitializedAsync()
     {
         await LoadGroups();
         await Load();
     }
+
+    protected override void OnParametersSet() => _filterGroupId = GroupId;
 
     private async Task LoadGroups()
     {
@@ -74,7 +91,13 @@
         finally { _loading = false; }
     }
 
-    private void OnFilterChanged(int? value) => _filterGroupId = value;
+    private void OnFilterChanged(int? value)
+    {
+        var query = value is null ? "" : $"?groupId={value}";
+        Nav.NavigateTo($"/boxes{query}");
+    }
+
+    private void ViewSlides(BoxDto box) => Nav.NavigateTo($"/slides?boxId={box.Id}");
 
     private string GroupName(int groupId) =>
         _groups.FirstOrDefault(g => g.Id == groupId)?.Name ?? groupId.ToString();

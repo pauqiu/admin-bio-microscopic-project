@@ -1,4 +1,5 @@
 @page "/slides"
+@using UCR.EB.BioMicroscopeAdmin.Frontend.Presentation.Components
 @inject ISlideService SlideService
 @inject IBoxService BoxService
 @inject IDialogService DialogService
@@ -39,7 +40,10 @@
         <MudTd DataLabel="Caja">@BoxName(context.BoxId)</MudTd>
         <MudTd Style="text-align:right">
             <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
-                           OnClick="@(() => ViewDetail(context))" />
+                           aria-label="Ver primera imagen"
+                           OnClick="@(() => OpenFirstImage(context))" />
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                           aria-label="Editar lámina" OnClick="@(() => ViewDetail(context))" />
             <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
                            OnClick="@(() => Delete(context))" />
         </MudTd>
@@ -59,8 +63,22 @@
     private int? _filterBoxId;
     private string _searchText = "";
     private bool _loading;
+    private int? _lastAppliedBoxId;
+
+    [SupplyParameterFromQuery(Name = "boxId")]
+    public int? BoxId { get; set; }
 
     protected override async Task OnInitializedAsync() => await LoadBoxes();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_lastAppliedBoxId == BoxId) return;
+
+        _filterBoxId = BoxId;
+        _lastAppliedBoxId = BoxId;
+        if (_table is not null)
+            await _table.ReloadServerData();
+    }
 
     private async Task LoadBoxes()
     {
@@ -84,10 +102,10 @@
         finally { _loading = false; }
     }
 
-    private async Task OnFilterChanged(int? value)
+    private void OnFilterChanged(int? value)
     {
-        _filterBoxId = value;
-        await _table.ReloadServerData();
+        var query = value is null ? "" : $"?boxId={value}";
+        Nav.NavigateTo($"/slides{query}");
     }
 
     private async Task OnSearchChanged(string value)
@@ -103,6 +121,28 @@
     }
 
     private void ViewDetail(SlideDto slide) => Nav.NavigateTo($"/slides/{slide.Id}");
+
+    private async Task OpenFirstImage(SlideDto slide)
+    {
+        SlideDetailDto? detail;
+        try { detail = await SlideService.FindByIdAsync(slide.Id); }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar las imágenes de la lámina: {ex.Message}", Severity.Error);
+            return;
+        }
+
+        var images = detail?.Images.OrderBy(image => image.Order).ToList() ?? [];
+        if (images.Count == 0) return;
+
+        var parameters = new DialogParameters<ImageViewerDialog>
+        {
+            { x => x.Images, images },
+            { x => x.StartIndex, 0 }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.ExtraLarge, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true };
+        await DialogService.ShowAsync<ImageViewerDialog>(images[0].FileName, parameters, options);
+    }
 
     private async Task OpenCreate()
     {

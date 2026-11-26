@@ -2,13 +2,17 @@
 @inject IGroupService GroupService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject NavigationManager Nav
 
 <PageTitle>Grupos</PageTitle>
 
-<MudTable Items="_groups" Loading="_loading" Hover="true" Bordered="true" Striped="true">
+<MudTable Items="FilteredGroups" Loading="_loading" Hover="true" Bordered="true" Striped="true">
     <ToolBarContent>
         <MudText Typo="Typo.h5">Grupos</MudText>
         <MudSpacer />
+        <MudTextField T="string" @bind-Value="_searchText" Immediate="true" Label="Buscar por nombre"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true"
+                      Style="max-width:280px" Class="mr-4" Variant="Variant.Outlined" />
         <MudTooltip Text="Para crear grupos, use &quot;Nueva Lámina&quot; en la sección Láminas.">
             <MudIcon Icon="@Icons.Material.Filled.Info" Color="Color.Default" Size="Size.Small" />
         </MudTooltip>
@@ -22,6 +26,10 @@
         <MudTd DataLabel="Id">@context.Id</MudTd>
         <MudTd DataLabel="Nombre">@context.Name</MudTd>
         <MudTd Style="text-align:right">
+            <MudTooltip Text="Ver cajas de este grupo">
+                <MudIconButton Icon="@Icons.Material.Filled.FolderOpen" Color="Color.Info" Size="Size.Small"
+                               OnClick="@(() => ViewBoxes(context))" />
+            </MudTooltip>
             <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
                            OnClick="@(() => OpenEdit(context))" />
             <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
@@ -35,7 +43,12 @@
 
 @code {
     private List<GroupDto> _groups = [];
+    private string _searchText = "";
     private bool _loading = true;
+
+    private IEnumerable<GroupDto> FilteredGroups =>
+        _groups.Where(g => string.IsNullOrWhiteSpace(_searchText)
+            || g.Name.Contains(_searchText, StringComparison.OrdinalIgnoreCase));
 
     protected override Task OnInitializedAsync() => Load();
 
@@ -75,6 +88,8 @@
             }
         }
     }
+
+    private void ViewBoxes(GroupDto group) => Nav.NavigateTo($"/boxes?groupId={group.Id}");
 
     private async Task Delete(GroupDto group)
     {
