@@ -2,22 +2,13 @@
 @inject IImageService ImageService
 
 <MudDialog OnBackdropClick="OnBackdropClick">
-    <TitleContent>Subir imágenes</TitleContent>
+    <TitleContent>
+        <MudText Typo="Typo.h6" Class="my-0">Subir imágenes</MudText>
+    </TitleContent>
     <DialogContent>
         <MudText Typo="Typo.body2" Class="mb-3">
-            Elija varias fotos. La primera de esta selección ocupa el aumento libre más bajo.
-            En el visor, el aumento 1 es la foto más lejana. Después puede reordenarlas arrastrando en la lámina.
+            La primera que elija ocupa el aumento libre más bajo.
         </MudText>
-        <MudFileUpload T="IReadOnlyList<IBrowserFile>" FilesChanged="OnFilesChanged" Accept="image/*" MaximumFileCount="100">
-            <ActivatorContent>
-                <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                           StartIcon="@Icons.Material.Filled.CloudUpload"
-                           Disabled="@(_uploading || _attempts.Count > 0)">
-                    Seleccionar fotos
-                </MudButton>
-            </ActivatorContent>
-        </MudFileUpload>
-
         @if (_attempts.Count == 0)
         {
             @foreach (var item in _preview.Accepted)
@@ -38,6 +29,16 @@
         }
     </DialogContent>
     <DialogActions>
+        <MudFileUpload T="IReadOnlyList<IBrowserFile>" FilesChanged="OnFilesChanged" Accept="image/*" MaximumFileCount="100"
+                       Class="me-auto my-0" Style="width:auto">
+            <ActivatorContent>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.CloudUpload"
+                           Disabled="@(_uploading || _attempts.Count > 0)">
+                    Seleccionar fotos
+                </MudButton>
+            </ActivatorContent>
+        </MudFileUpload>
         <MudButton OnClick="Close" Disabled="_uploading">Cerrar</MudButton>
         @if (_attempts.Any(attempt => !attempt.Succeeded))
         {
